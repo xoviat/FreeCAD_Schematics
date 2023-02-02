@@ -9,12 +9,16 @@
 
 from PySide2 import QtCore
 
+WithoutSnap = False
+
+def snapAxis(step, value):
+    return (value + step / 2) // step * step
+
 def snap(value, sheet):
     """ value type is QtCore.QPointF. step is integer"""
-    if sheet.SnapEnabled is not True:
+    if sheet.SnapEnabled is not True or WithoutSnap:
         return value
     step = sheet.GridSpacing.Value
     if sheet.SnapToMajorGrid:
         step *= sheet.MajorGridLineEvery
-    # !!! Formula incorrectly converts negative values
-    return QtCore.QPointF((value.x() + step / 2) // step * step, (value.y() + step / 2) // step * step)
+    return QtCore.QPointF(snapAxis(step, value.x()), snapAxis(step, value.y()))

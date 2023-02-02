@@ -7,11 +7,10 @@
 #
 ###############################################################################
 
-import FreeCAD
-import Utils
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
 from Features.SchemeViewAndScene import SchemeGraphicsView, SchemeGraphicsScene
-from SCUtils import getTreeviewIconPath
+from Features.Utils.SVGSymbolsCache import transformUnits
+from SCUtils import *
 from Features.SchemeProviderSetup import SchemeViewProviderSetup
 from Features.Utils.SVG import *
 from Features.Utils.MDI import *
@@ -20,8 +19,7 @@ import Features.Utils.CopyPaste
 
 def CreateScheme():
     # Add transaction!
-    # Add methods to FeaturePython object https://forum.freecadweb.org/viewtopic.php?t=3691
-    obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', 'BluePrint')
+    obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', 'Schematic')
     SchemeFeature(obj)
     BluePrintViewProvider(obj.ViewObject)
     return obj
@@ -34,7 +32,7 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
         self.setMouseTracking(True)
         self.contextMenuScenePos = None
 
-    def contextMenuEvent(self, event):
+    def ZcontextMenuEvent(self, event):
         # If scene in special mode state not show context menu
         if self.obj.Proxy.scene.mode is not None:
             return
@@ -80,13 +78,13 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
         # Shift objects after paste
 
     def contextMenuPasteSamePlace(self):
-        # print("Patse to the same place")
+        # print("Paste to the same place")
         FreeCAD.Gui.runCommand('Std_Paste', 0)
 
     def contextMenuTurnRight(self):
         for obj in FreeCAD.Gui.Selection.getSelection():
             if hasattr(obj, 'Rotation'):
-                obj.Rotation = obj.Rotation.Value + 90
+                obj.Rotation = obj.Rotation.Value + (-360+90 if obj.Rotation.Value+90 > 360 else 90)
 
     def contextMenuDuplicateSheet(self):
         return
@@ -94,7 +92,7 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
     def contextMenuTurnLeft(self):
         for obj in FreeCAD.Gui.Selection.getSelection():
             if hasattr(obj, 'Rotation'):
-                obj.Rotation = obj.Rotation.Value - 90
+                obj.Rotation = obj.Rotation.Value - (-360+90 if obj.Rotation.Value-90 < -360 else 90)
 
     #def leaveEvent(self, event):
     #    Features.CopyPaste.mouseCopyPos = None
@@ -120,14 +118,14 @@ class SchemeFeature:
         self.Type = 'SchemeFeature'
         obj.addProperty('App::PropertyFileIncluded', 'Template', 'Base', 'A slot for SVG Template file')
         # https://github.com/FreeCAD/FreeCAD/blob/302d3f5b95030b81d1a4b45f40fc8d18f1ecbe49/src/App/PropertyFile.cpp#L613-L629
-        if Utils.FreeCADVersion() >= 20.3:
+        if FreeCADVersion() >= 20.3:
             obj.Template = {"filter" : "Svg files (*.svg *.SVG);;All files (*.*)"}
         obj.Proxy = self
         # Using the PropertyLinkListHidden property type instead of just PropertyLinkList 
         # allows to avoid the intrusive dialog that popup when user try to remove any element from the sheet.
         obj.addProperty('App::PropertyEnumeration', 'Appearance', 'Appearance', 'Sheet appearance style', 8+16).Appearance = list(SheetAppearanceStyles)
         obj.Appearance = list(SheetAppearanceStyles)[0]   # Default appearance
-        obj.addProperty('App::PropertyColor', 'LinesColor', 'Appearance', 'Color of scheme lines', 8+16).LinesColor = (0.3, 0.6, 0.0, 1.0)
+        obj.addProperty('App::PropertyColor', 'LinesColor', 'Appearance', 'Color of scheme lines', 8+16).LinesColor = (0.0, 0.0, 0.0, 1.0)
         obj.addProperty('App::PropertyColor', 'PaperColor', 'Appearance', 'Color of paper', 8+16).PaperColor = (1.0, 1.0, 0.98, 1.0)
         # -----------------------------------------------------------------------------------------
         obj.addProperty('App::PropertyLinkListHidden', 'Elements', 'Base', 'Elements list of sheet', 8+16).Elements = []
@@ -147,9 +145,7 @@ class SchemeFeature:
         obj.addProperty('App::PropertyBool', 'SnapEnabled', 'Grid', 'Snap enabled or not', 8+16).SnapEnabled = True
         obj.addProperty('App::PropertyBool', 'SnapToMajorGrid', 'Grid', 'Snap step major grid otherwise to minor grid', 8+16).SnapToMajorGrid = False
         self.obj = obj
-        self.appearance = SheetAppearanceStyles[obj.Appearance](self.obj)
         self.initWindow(obj)
-        print(self.__dict__)
 
     def onDocumentRestored(self, obj):
         FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} onDocumentRestored " + str(obj) + " \n")
@@ -168,9 +164,7 @@ class SchemeFeature:
                     return
         self.scene = SchemeGraphicsScene(self.obj)
         view = SchemeGraphicsView()
-        view.setCacheMode(view.CacheBackground.CacheNone)
-        view.setViewportUpdateMode(view.ViewportUpdateMode.SmartViewportUpdate)
-        print(str(view.cacheMode()),str(view.viewportUpdateMode()))
+        #print(str(view.cacheMode()), str(view.viewportUpdateMode()))
         view.setBackgroundBrush(QtGui.Qt.gray) # Add background color property
         view.setScene(self.scene)
         self.view = view
@@ -188,7 +182,16 @@ class SchemeFeature:
         subWindow.show()                                     # Show getted QMdiSubWindow
         mdiArea.setActiveSubWindow(subWindow)                # Activate sub window
 
+        self.appearance = SheetAppearanceStyles[obj.Appearance](obj)
+
         self.updateTemplate(obj)
+
+        # Add methods to FeaturePython object https://forum.freecadweb.org/viewtopic.php?t=3691
+        def addItem(self, item):
+            obj.Elements += [item]
+            return
+
+        obj.addItem = addItem
 
         # Restoring all elements of sheet
         for x in obj.Elements:
@@ -197,30 +200,30 @@ class SchemeFeature:
     def onChanged(self, obj, prop):
         self.obj = obj   # Used when document is restored
         val = obj.getPropertyByName(prop)
-        FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} Change property: " + str(prop) + "=" + str(val) + "\n")
+        #FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} Change property: " + str(prop) + "=" + str(val) + "\n")
         if not hasattr(self, "scene"):
             return
+
         if prop == "Visibility":
             if val == True:
                 self.initWindow(obj)    # Needs to show closed mdi window again
                 FreeCAD.Gui.Selection.removeSelection(obj)  # Remove selection from sheet for comfortabilly work
             else:
                 self.onDelete()
-        if prop == "Template":
+        elif prop == "Template":
             self.updateTemplate(obj)        # Set new template or update existed
-        # !!! Grid parameters move to ViewProvider?
-        if "Grid" in prop or "Snap" in prop:
+        elif "Grid" in prop or "Snap" in prop:
+            # !!! Grid parameters move to ViewProvider?
             self.scene.update()             # Force redraw sheet after visible changed
-        if prop == "LinesColor" or prop == "PaperColor":
+        elif prop == "LinesColor" or prop == "PaperColor":
             self.obj.Appearance = list(SheetAppearanceStyles)[-1]  # Activate last style
             return
-        if prop == "Appearance":
-            self.appearance = SheetAppearanceStyles[val](self.obj)
+        elif prop == "Appearance":
+            self.appearance = SheetAppearanceStyles[val](obj)
             # Save viewport state
-            #viewRect = (self.view.mapToScene(0, 0, self.view.viewport().width(), self.view.viewport().height())).boundingRect()
             transform = self.view.transform()
             center = self.view.mapToScene(self.view.viewport().rect()).boundingRect().center()
-            print(self.view.transform())
+            #print(self.view.transform())
             # Set background color
             #    self.view.setBackgroundBrush(QtGui.Qt.black)
             # Update all elements of sheet
@@ -230,9 +233,8 @@ class SchemeFeature:
             # Restore viewport state
             self.view.setTransform(transform)
             self.view.centerOn(center)
-            print(self.view.transform())
-            #self.view.fitInView(viewRect, QtCore.Qt.AspectRatioMode.KeepAspectRatio)
-        if prop == "Label":
+            #print(self.view.transform())
+        elif prop == "Label":
             self.frame.setWindowTitle(val)  # Change window title and tab text updated automatically too
 
     def updateTemplate(self, obj):
@@ -264,13 +266,13 @@ class SchemeFeature:
             else:
                 obj.ViewObject.Orientation = "Portrait"
 
-            print(svg.boundingRect(),svg.renderer().viewBoxF(),svg.renderer().aspectRatioMode())
+            #print(svg.boundingRect(), svg.renderer().viewBoxF(), svg.renderer().aspectRatioMode())
             # Make margins around sheet for comfortable scrolling
             w = svg.boundingRect().width() * 0.25
             h = svg.boundingRect().height() * 0.25
-            self.scene.setSceneRect(svg.boundingRect().adjusted(-w,-h,w,h))
+            self.scene.setSceneRect(svg.boundingRect().adjusted(-w, -h, w, h))
             # Fit sheet to view
-            self.view.fitInView(svg.boundingRect().adjusted(-20,-20,20,20), QtCore.Qt.KeepAspectRatio)
+            self.view.fitInView(svg.boundingRect().adjusted(-20, -20, 20, 20), QtCore.Qt.KeepAspectRatio)
 
     def onSelect(self):
         # if Visibility == False this means that the window was closed by the user 
@@ -322,9 +324,9 @@ class SchemeFeature:
     #    # self.addShadow(textitem)
     #    return textitem
 
-    def addItem(self, item):
-        self.obj.Elements += [item]
-        return
+    #def addItem(self, item):
+    #    self.obj.Elements += [item]
+    #    return
 
     def clearSelection(self):
         self.scene.clearSelection()
@@ -365,14 +367,14 @@ class BluePrintViewProvider(SchemeViewProviderSetup):
     def claimChildren(self):
         return self.elements
 
-    def getDetailPath(self, subname, path, append):
-        FreeCAD.Console.PrintMessage(f"{__class__.__name__} getDetailPath: {str(subname)} {str(path)} {str(append)}\n")
+    #def getDetailPath(self, subname, path, append):
+    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} getDetailPath: {str(subname)} {str(path)} {str(append)}\n")
 
-    def getElementPicked(self, pp):
-        FreeCAD.Console.PrintMessage(f"{__class__.__name__} getElementPicked: {str(pp)}\n")
+    #def getElementPicked(self, pp):
+    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} getElementPicked: {str(pp)}\n")
 
-    def onChanged(self, vp, prop):
-        FreeCAD.Console.PrintMessage(f"{__class__.__name__} onChanged property: {str(prop)}\n")
+    #def onChanged(self, vp, prop):
+    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} onChanged property: {str(prop)}\n")
 
     def getIcon(self):
         return getTreeviewIconPath('Scheme.svg')

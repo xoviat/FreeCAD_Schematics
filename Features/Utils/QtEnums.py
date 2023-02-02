@@ -33,5 +33,19 @@ QtLineStyles = {
     "Dash line": QtCore.Qt.DashLine,
     "Dot line": QtCore.Qt.DotLine,
     "Dash dot line": QtCore.Qt.DashDotLine,
-    "Dash dot dot line": QtCore.Qt.DashDotDotLine
+    "Dash dot dot line": QtCore.Qt.DashDotDotLine,
+    #"Custom dash line": QtCore.Qt.CustomDashLine,
+}
+
+QtJoinStyles = {
+    "Miter join": QtCore.Qt.MiterJoin,
+    "Bevel join": QtCore.Qt.BevelJoin,
+    "Round join": QtCore.Qt.RoundJoin,
+    "SVG miter join": QtCore.Qt.SvgMiterJoin,
+}
+
+QtCapStyles = {
+    "Flat cap": QtCore.Qt.FlatCap,
+    "Square cap": QtCore.Qt.SquareCap,
+    "Round cap": QtCore.Qt.RoundCap,
 }

@@ -12,18 +12,17 @@ import math
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
 from Features.Utils.Snap import snap
 from Features.Utils.QtEnums import *
+from Features.SchemeContextMenu import ContextMenu
 
 class SchemeGraphicsView(QtWidgets.QGraphicsView):
 
     def __init__(self):
         super().__init__()
-        #self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
-        #self.setResizeAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         #self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
-        self.setViewportUpdateMode(self.ViewportUpdateMode.FullViewportUpdate)
+        self.setViewportUpdateMode(self.ViewportUpdateMode.NoViewportUpdate) # #FullViewportUpdate) FullViewportUpdate)
         self.setDragMode(self.RubberBandDrag) #ScrollHandDrag)
         self.setMouseTracking(True)
-        self.setCacheMode(self.CacheNone)
+        #self.setCacheMode(self.CacheNone)
         self.dragMode = False
 
     def getScale(self):
@@ -35,29 +34,42 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
 
     def mousePressEvent(self, event):
         # print("mpress event", event)
+        # Update on left click (selection/deselection)
+        if event.button() == QtCore.Qt.LeftButton:
+            self.scene().update()
         if event.button() == QtCore.Qt.MiddleButton:
             # rubber mode of
             self.sceneCenter = self.mapToScene(self.viewport().rect().center())
             self.startPos = event.localPos()
             self.dragMode = True
-            self.viewport().setCursor(QtCore.Qt.ClosedHandCursor) 
+            self.viewport().setCursor(QtCore.Qt.ClosedHandCursor)
         super().mousePressEvent(event)
-   
+        if event.button() == QtCore.Qt.RightButton:
+            self.viewport().unsetCursor()
+            if not self.scene().blockContextMenu:
+                contextMenu = ContextMenu(self)
+                contextMenu.addStandartActions()
+                contextMenu.invokeAt(event.globalPos())
+        self.scene().blockContextMenu = False
+
     def mouseReleaseEvent(self, event):
-        # print("mrelease event", event)
         if event.button() == QtCore.Qt.MiddleButton:
             # rubber mode on
             self.dragMode = False
-            self.viewport().setCursor(QtCore.Qt.ArrowCursor) 
+            self.viewport().unsetCursor() #QtCore.Qt.ArrowCursor)
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
         #print(f"mmove event {event.localPos()}")
         overItem = self.itemAt(event.localPos().toPoint())
-        if overItem is not None and (overItem.flags() & overItem.ItemIsSelectable):
-            self.setCursor(QtCore.Qt.SizeAllCursor)
+        if hasattr(overItem, "drawMode") and overItem.drawMode:
+            self.viewport().setCursor(QtCore.Qt.CrossCursor)
         else:
-            self.setCursor(QtCore.Qt.ArrowCursor)
+            if overItem is not None and (overItem.flags() & overItem.ItemIsMovable):
+                    #(overItem.flags() & overItem.ItemIsSelectable)
+                self.viewport().setCursor(QtCore.Qt.SizeAllCursor)
+            else:
+                self.viewport().setCursor(QtCore.Qt.ArrowCursor)
 
         if self.dragMode:
             self.centerOn(self.sceneCenter + (self.startPos - event.localPos()) / self.getScale())
@@ -75,130 +87,32 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
 
 # ---------------------------------------------------------------------------------------
 
-class drawWireMode:
-
-    def __init__(self, obj, scene, points):
-        self.obj = obj
-        self.scene = scene
-        self.points = points
-        self.drawingMode(True)
-
-    def __del__(self):
-        # If user start draw wire, terminate that
-        if len(self.points) > 0:
-            if self.points[-1] is not None:
-                self.points.append(None)
-        self.drawingMode(False)
-        #print(f'drawWireMode class destructed')
-
-    def drawingMode(self, status):
-        print(f'!!! setInteractive({not status})')
-        ### self.obj.Proxy.view.setInteractive(not status)
-        for item in self.scene.items():
-            if hasattr(item, "pinsXY"):
-                item.setFlag(item.ItemIsMovable, not status)
-                item.setFlag(item.ItemIsSelectable, not status)
-
-    def drawForeground(self, g, rect):
-        # Highlight pins
-        pinsPen = QtGui.QPen(QtCore.Qt.red, 0.5, QtCore.Qt.SolidLine)
-        g.setPen(pinsPen)
-        s = 1.5
-        for item in self.scene.items():
-            if hasattr(item, "pinsXY"):
-                for pin in item.pinsXY:
-                    name, x, y = pin
-                    g.drawLine(QtCore.QPointF(x - s, y - s), QtCore.QPointF(x + s, y + s))
-                    g.drawLine(QtCore.QPointF(x - s, y + s), QtCore.QPointF(x + s, y - s))
-
-    def mousePressEvent(self, event):
-        cursorScenePos = event.scenePos()
-        self.curpos = snap(cursorScenePos, self.obj)
-        if event.button() == QtCore.Qt.LeftButton:
-            if len(self.points) == 0:
-                self.points.append(self.curpos)
-            else:
-                prev = self.points[-1]   # last element
-                if prev is None:
-                    self.points.append(self.curpos)
-                else:
-                    if self.curpos.x() == prev.x() or self.curpos.y() == prev.y():
-                        self.points.append(self.curpos)
-                    else:
-                        # !!! if the length is >3 grid steps, remember the course of the wire and do not change it.
-                        if abs(self.curpos.x()-prev.x()) < abs(self.curpos.y()-prev.y()):
-                            self.points.append(QtCore.QPointF(prev.x(), self.curpos.y()))
-                            self.points.append(self.curpos)
-                        else:
-                            self.points.append(QtCore.QPointF(self.curpos.x(), prev.y()))
-                            self.points.append(self.curpos)
-        if event.button() == QtCore.Qt.RightButton:
-            if len(self.points) > 0  and self.points[-1] is not None:
-                self.points.append(None)
-            else:
-                self.scene.disableAllModes()
-        #self.update()
-
-# ---------------------------------------------------------------------------------------
-
 class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
     
     def __init__(self, obj):
         super().__init__()
         self.obj = obj
-        self.mode = None
         self.mouseCurPos = None
         self.points = []
-
-    def disableAllModes(self):
-        self.mode = None
-        self.update()
-
-    def enableDrawWireMode(self):
-        self.mode = drawWireMode(self.obj, self, self.points)
-        self.update()
-
-    def drawWires(self, g, curpos):
-        g.setRenderHints(g.RenderHint.Antialiasing | g.RenderHint.TextAntialiasing)
-
-        # Draw wires
-        prev = None
-        brush = QtGui.QColor.fromRgbF(*self.obj.Proxy.appearance.linesColor())
-        wirePen = QtGui.QPen(brush, 0.5, QtCore.Qt.SolidLine)
-        g.setPen(wirePen)
-        for p in self.points:
-            if prev is not None and p is not None:
-                g.drawLine(prev, p)
-            prev = p
-
-        if curpos is not None:
-            curpos = snap(curpos, self.obj)
-            if prev is not None:
-                if curpos.x() == prev.x() or curpos.y() == prev.y():
-                    g.drawLine(prev, curpos)
-                else:
-                    if abs(curpos.x() - prev.x()) < abs(curpos.y() - prev.y()):
-                        g.drawLine(prev, QtCore.QPointF(prev.x(), curpos.y()))
-                        g.drawLine(QtCore.QPointF(prev.x(), curpos.y()), curpos)
-                    else:
-                        g.drawLine(prev, QtCore.QPointF(curpos.x(), prev.y()))
-                        g.drawLine(QtCore.QPointF(curpos.x(), prev.y()), curpos)
+        self.blockContextMenu = False
 
     def drawForeground(self, g, rect):
-        # Draw wires
-        self.drawWires(g, self.mouseCurPos)
+        ### g.drawText(50, 50, str(len(self.items())))
 
-        if self.mode is not None:
-            self.mode.drawForeground(g, rect)
+        # ! Do not paint anything while the file is loading
+        if not hasattr(self.obj, "Proxy"):
+            return
 
         # Show grid
         if self.obj.GridVisible:
 
             minorBrush = QtGui.QColor.fromRgbF(*self.obj.MinorGridLineColor)
-            minorPen = QtGui.QPen(minorBrush, self.obj.MinorGridLineWidth.Value, QtLineStyles[self.obj.MinorGridLineStyle])
+            minorPen = QtGui.QPen(minorBrush, self.obj.MinorGridLineWidth.Value,
+                QtLineStyles[self.obj.MinorGridLineStyle], QtCore.Qt.FlatCap, QtCore.Qt.RoundJoin)
 
             majorBrush = QtGui.QColor.fromRgbF(*self.obj.MajorGridLineColor)
-            majorPen = QtGui.QPen(majorBrush, self.obj.MajorGridLineWidth.Value, QtLineStyles[self.obj.MajorGridLineStyle])
+            majorPen = QtGui.QPen(majorBrush, self.obj.MajorGridLineWidth.Value,
+                QtLineStyles[self.obj.MajorGridLineStyle], QtCore.Qt.SquareCap, QtCore.Qt.RoundJoin)
 
             g.setPen(minorPen)
 
@@ -233,8 +147,6 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                 i += 1
     
     def mousePressEvent(self, event):
-        if self.mode is not None:
-            self.mode.mousePressEvent(event)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):

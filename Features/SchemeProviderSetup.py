@@ -5,12 +5,12 @@
 
 class SchemeViewProviderSetup:
 
-    def attach(self, obj):      
+    def attach(self, obj):
         """ Setup the scene sub-graph of the view provider, this method is mandatory """
-        from pivy import coin    # Without that icon is be gray  
-        # App.Console.PrintMessage("Not3DViewProviderr attach \n")
+        from pivy import coin     # Without this, the icon will be displayed in grayscale
+        # App.Console.PrintMessage("Not3DViewProvider attach \n")
         drawingDisplayMode = coin.SoGroup()
-        obj.addDisplayMode(drawingDisplayMode, "Drawing");
+        obj.addDisplayMode(drawingDisplayMode, "Drawing")
         
         # Moved from __init__ to get rid of super().__init__(obj)
         # These settings are used for the 3D view, but this object is part of the 2D sheet. 

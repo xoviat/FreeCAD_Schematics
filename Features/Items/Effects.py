@@ -7,25 +7,42 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui
+import FreeCAD
+from PySide2 import QtGui, QtCore, QtWidgets
 
-def removeEffect(item):
-    """ Remove effect if it connected. Mandatory """
-    item.setGraphicsEffect(None)
 
-def addShadow(item, radius=10, xOffset=5, yOffset=5):
-    """Add shadow effect to scene item"""
-    removeEffect(item)
-    shadow = QtGui.QGraphicsDropShadowEffect()
+def addShadow(obj, radius=10, xOffset=5, yOffset=5):
+    """ Add shadow effect to schematics object """
+    FreeCAD.Console.PrintWarning("\n! Effects not saves to file, and looks pixelated on print preview !\n\n")
+    item = obj.Proxy.item
+    item.setGraphicsEffect(None)   # ! Mandatory
+    shadow = QtWidgets.QGraphicsDropShadowEffect()
     shadow.setBlurRadius(radius)
     shadow.setXOffset(xOffset)
     shadow.setYOffset(yOffset)
     item.setGraphicsEffect(shadow)
 
-def addColorize(item, color=QtGui.Qt.gray, strength=0.5):
-    """Add colorization effect to scene item"""
-    removeEffect(item)
-    shadow = QtGui.QGraphicsColorizeEffect()
-    shadow.setColor(color)
-    shadow.setStrength(strength)
-    item.setGraphicsEffect(shadow)
+def addColorize(obj, color=QtGui.Qt.gray, strength=0.5):
+    """ Add colorization effect to schematics object """
+    FreeCAD.Console.PrintWarning("\n! Effects not saves to file, and looks pixelated on print preview !\n\n")
+    item = obj.Proxy.item
+    item.setGraphicsEffect(None)   # ! Mandatory
+    colorize = QtWidgets.QGraphicsColorizeEffect()
+    colorize.setColor(color)
+    colorize.setStrength(strength)
+    item.setGraphicsEffect(colorize)
+
+def addBlur(obj, radius=5, hint=QtWidgets.QGraphicsBlurEffect.QualityHint):
+    """ Add blur effect to schematics object """
+    FreeCAD.Console.PrintWarning("\n! Effects not saves to file, and looks pixelated on print preview !\n\n")
+    item = obj.Proxy.item
+    item.setGraphicsEffect(None)   # ! Mandatory
+    blur = QtWidgets.QGraphicsBlurEffect()
+    blur.setBlurHints(hint)
+    blur.setBlurRadius(radius)
+    item.setGraphicsEffect(blur)
+
+def removeEffect(obj):
+    """ Remove effect from schematics object """
+    item = obj.Proxy.item
+    item.setGraphicsEffect(None)

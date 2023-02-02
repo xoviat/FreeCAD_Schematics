@@ -20,6 +20,9 @@ pathToTemplatesFolder = os.path.join(dir, 'Templates')
 pathToSymbolsFolder = os.path.join(dir, 'Symbols')
 pathToTranslationsFolder = os.path.join(dir, 'translations')
 
+def getRootPath(file):
+    return os.path.join(dir, file)
+
 def getIconPath(file):
    return os.path.join(pathToIconsFolder, file)
 
@@ -38,6 +41,13 @@ def getSymbolPath(file):
 def getTemplatePath(file):
    return os.path.join(pathToTemplatesFolder, file)
 
+# ------------------------- StatusBar -------------------------
+
+import FreeCAD
+
+def StatusBarMessage(text, time_ms=0):
+    FreeCAD.Gui.getMainWindow().statusBar().showMessage(text, time_ms)
+
 # ------------------------- Dialogs -------------------------
 
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
@@ -47,8 +57,6 @@ def MessageBox(typeString, title, text):
     dlg.exec_()
 
 # ------------------------- Versioning -------------------------
-
-import FreeCAD
 
 def FreeCADVersion():
     major = FreeCAD.Version()[0]

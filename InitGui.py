@@ -42,19 +42,19 @@ class SchematicsWorkbench(FreeCAD.Gui.Workbench):
                     obj.Proxy.onSelect()
                     # Select all sub elements (for copy all sheet)
                     # Activate tab
-                if hasattr(obj, 'ElementType'):
+                if hasattr(obj, 'Proxy') and hasattr(obj.Proxy, 'setSelected'):
                     FreeCAD.Console.PrintMessage(f"addSelection {str(doc)}, {str(obj)}, {str(sub)}, {str(pnt)} \n")
                     obj.Proxy.setSelected(True)
                     # Activate tab
 
             def removeSelection(self, doc, obj, sub):
                 obj = FreeCAD.getDocument(doc).getObject(obj)
-                if hasattr(obj, 'ElementType'):
+                if hasattr(obj, 'Proxy') and hasattr(obj.Proxy, 'setSelected'):
                     FreeCAD.Console.PrintMessage(f"removeSelection {str(doc)}, {str(obj)}, {str(sub)} \n")
                     obj.Proxy.setSelected(False) 
 
             def clearSelection(self, doc):
-                for x in App.ActiveDocument.RootObjects:
+                for x in FreeCAD.ActiveDocument.RootObjects:
                     if hasattr(x, 'Elements'): # obj.Proxy.__class__.__name__=='SchemeFeature'
                         x.Proxy.clearSelection()
                 print ("clearSelection")
@@ -100,12 +100,11 @@ class GuiDocumentObserver:
     def slotDeletedObject(self, viewProviderObject):
         print('slotDeletedObject')
         print('Object delete: ', viewProviderObject.Object.Name)
-        if hasattr(viewProviderObject.Object, 'ElementType'):    
+        # If method exist invoke it
+        if hasattr(viewProviderObject.Object.Proxy, 'onDelete'):
             viewProviderObject.Object.Proxy.onDelete()
-        if hasattr(viewProviderObject.Object, 'Elements'):    
-            viewProviderObject.Object.Proxy.onDelete()    
 
-    def slotCreatedObject(self, viewProviderObject):        
+    def slotCreatedObject(self, viewProviderObject):
         print('Object create: ', viewProviderObject.Object.Name)
         # Ignore object that not have Proxy
         if hasattr(viewProviderObject.Object, "Proxy"):
