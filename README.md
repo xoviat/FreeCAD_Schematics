@@ -1,3 +1,7 @@
+# Refusal of responsibility
+
+This software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 # Description
 
 Among the main features, this editor is oriented to what kind of window is currently active. 
@@ -132,5 +136,3 @@ sheetData.MinorGridLineColor = (1.00,0.00,0.00) # Red
 sheetData.MinorGridLineStyle = 1 # Solid style
 #END
 ```
-
-

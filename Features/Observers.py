@@ -12,6 +12,7 @@ from PySide2 import QtWidgets
 from Features.Utils.ActionsReplacer import *
 from Features.Utils.MDI import *
 from Features.Utils.Printing import PrintPreviewAction
+from SCUtils import *
 
 
 def setup():
@@ -19,16 +20,26 @@ def setup():
     getMdiArea().subWindowActivated.connect(subWindowChanged)
     # Register actions to ActionsReplacer
     registerAction("Std_PrintPreview", PrintPreviewAction)
+    registerAction("Std_Print", PrintPreviewAction)
+    registerAction("Std_Export", Plug)
+    registerAction("Std_Import", Plug)
+    registerAction("Std_PrintPdf", Plug)
     registerAction("Std_ViewZoomIn", SchemeZoomIn)
     registerAction("Std_ViewZoomOut", SchemeZoomOut)
 
 # This code invoked if user has changed the active tab.
 def subWindowChanged():
-    FreeCAD.Gui.Selection.clearSelection()
-    print('subWindowChanged + clearSelection')
     # If current active window is schematics replace original actions
-    actionsSetActivate(activeWindowIsScheme())
-    FreeCAD.ActiveDocument.recompute()
+    if activeWindowIsScheme():
+        actionsSetActivate(True)
+        FreeCAD.Gui.Selection.clearSelection()
+        #print('schemeSelected + clearSelection')
+    else:
+        actionsSetActivate(False)
+    FreeCAD.ActiveDocument.recompute() # ! Update toolbars buttons state
+
+def Plug():
+    MessageBox("Information", "Schematics", "This function unsupported for schematics")
 
 def SchemeZoomIn():
     scheme = tryToGetSchemeFromActiveWindow()

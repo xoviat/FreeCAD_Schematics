@@ -12,12 +12,14 @@ from SCUtils import getSymbolPath
 
 cache = dict()
 
-def loadSVGSymbol(type):
+def loadSVGSymbol(type, path=None):
     global cache
     #print(f"Cache size: {getCacheSize()} bytes. Cache data:{cache}")
     cacheData = cache.get(type)
     if cacheData is None:
-        with open(getSymbolPath(type + ".svg"), "r", encoding='utf-8') as f:
+        if path is None:
+            path = getSymbolPath(type + ".svg")
+        with open(path, "r", encoding='utf-8') as f:
             data = f.read()
             data = transformUnits(data)
             data, pins = extractPins(data)
@@ -54,15 +56,17 @@ def transformUnits(xml):
 def extractPins(xml):
     pins = []
     # For findall grouping need to use syntax (?: | )
-    expression = r'< *circle .*pin="[^"]*".*(?:\/>|<\/circle>)'
+    expression = r'< *rect .*pin="[^"]*".*(?:\/>|<\/rect>)'
     tags = re.findall(expression, xml)
     # Save pins
+    zero = re.search(r'(0)', '0')
+    unknownPin = re.search(r'x0', 'x0')
     for tag in tags:
         # group(0) - return all string, group(1) - return value only
-        pinName = re.search(r'pin="([a-zA-Z\.0-9]+)"', tag).group(1)
-        pinX = float(re.search(r'cx="([\.0-9]+)"', tag).group(1))
-        pinY = float(re.search(r'cy="([\.0-9]+)"', tag).group(1))
-        print(f"Pin Name={pinName} X={pinX} Y={pinY}")
+        pinName = (re.search(r'pin="([a-zA-Z\.0-9]+)"', tag) or unknownPin).group(1)
+        pinX = float((re.search(r'x="([\.0-9]+)"', tag) or zero).group(1))
+        pinY = float((re.search(r'y="([\.0-9]+)"', tag) or zero).group(1))
+        #print(f"Pin Name={pinName} X={pinX} Y={pinY}")
         pins.append((pinName, pinX, pinY))
     # Remove pin tags from svg
     xml = re.sub(expression, '', xml)

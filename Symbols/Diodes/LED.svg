@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="10mm" height="10mm" version="1.1" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg" xmlns:schematics="http://">
+ <g fill="none" stroke="#000000" stroke-width=".5">
+  <path d="m10 5h-10"/>
+  <path d="m3 7 4-2-4-2z"/>
+  <path d="m7 3v4"/>
+ </g>
+ <rect y="5" width="0" height="0" schematics:pin="a"/>
+ <rect x="10" y="5" width="0" height="0" schematics:pin="c"/>
+ <path d="m6.25 0.5 0.25 0.25 1.5-1.5 2e-7 0.5 1-1.75-1.75 1h0.5z" fill="#000000"/>
+ <path d="m7.75 2 0.25 0.25 1.5-1.5 2e-7 0.5 1-1.75-1.75 1h0.5z" fill="#000000"/>
+</svg>

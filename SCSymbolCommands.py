@@ -7,27 +7,17 @@
 #
 ###############################################################################
 
-import FreeCAD
 import random
+
 from SCUtils import *
-from Features.Utils.MDI import *
 import Features.Items.Symbol as Symbol
-from Features.Items.Effects import *
-from Features.Items.Actions import *
+from Features.Functions.Effects import *
+from Features.Functions.Transforms import *
+from Features.Functions.TextStyle import *
 from Features.Items.Polyline import *
-from Features.Items.Rectangle import *
 from Features.Items.Ellipse import *
 from Features.Items.Line import *
-
-# this list must be got from symbols folder
-SymbolList = {
-    # (key) type : short label
-    "Node" : "N",
-    "Lamp" : "HL",
-    "Button" : "SB",
-    "RelayCoil" : "KM",
-    "RelayContact" : "K",
-}
+from Features.Items.Text import *
 
 SymbolCommandList = []
 
@@ -77,7 +67,8 @@ class PrimitiveCommand:
         }
 
     def Activated(self):
-        obj = Draw(self.inst())
+        StartDraw(self.inst)
+        #obj = Draw(self.inst())
 
     def IsActive(self):
         return activeWindowIsScheme()
@@ -86,21 +77,24 @@ PrimitiveCommand('Polyline', Polyline)
 PrimitiveCommand('Rectangle', Rectangle)
 PrimitiveCommand('Ellipse', Ellipse)
 PrimitiveCommand('Line', Line)
+PrimitiveCommand('Text', Text)
 
 addCommand('Separator')
 
 class SymbolCommand:
     """ Add Symbol command """
 
-    def __init__(self, type, help):
+    def __init__(self, group, type):
+        self.Group = group
         self.Type = type
-        self.Code = help
 
     def GetResources(self):
-        
-        return {'Pixmap': getSymbolIconPath(f"{self.Type}.svg"),
+        iconPath = getSymbolIconPath(f"{self.Type}.svg")
+        if not os.path.exists(iconPath):
+            iconPath = getSymbolPath(f"{os.path.join(self.Group,self.Type)}.svg")
+        return {'Pixmap': iconPath,
                 'MenuText': f"Add {self.Type} symbol",
-                'ToolTip': f"Add {self.Code}"}
+                'ToolTip': f"Add {self.Type} symbol"}
 
     def Activated(self):
         scheme = tryToGetSchemeFromActiveWindow()
@@ -112,14 +106,22 @@ class SymbolCommand:
     def IsActive(self):
         return activeWindowIsScheme()
 
-def AddSymbolCommand(type):
-    cmd = 'SC' + type
-    FreeCAD.Gui.addCommand(cmd, SymbolCommand(type, SymbolList[type]))   # Add command to FreeCAD Environment
-    SymbolCommandList.append(cmd)                       # Add command to list of Symbols toolbar
+from Features.Utils.SVGSymbolsCache import loadSVGSymbol
 
-# generate all commands
-for key in SymbolList:
-    AddSymbolCommand(key)
+dir = pathToSymbolsFolder
+for subdir, dirs, files in os.walk(dir):
+    for file in files:
+        if ".svg" in file.lower():
+            #print(os.path.join(subdir, file))
+            typ = file[:-4] #.replace(" ", "").replace(".", "")
+            group = ''
+            if subdir != dir:
+                group = os.path.basename(subdir)
+            #print(group, typ)
+            loadSVGSymbol(typ, os.path.join(subdir, file))
+            cmd = 'SC' + typ
+            FreeCAD.Gui.addCommand(cmd, SymbolCommand(group, typ))  # Add command to FreeCAD Environment
+            SymbolCommandList.append(cmd)  # Add command to list of Symbols toolbar
 
 addCommand('Separator')
 
@@ -169,3 +171,39 @@ FunctionCommand('Colorize', addColorize, "Add colorize effect to item")
 FunctionCommand('Blur', addBlur, "Add blur effect to item")
 FunctionCommand('RemoveEffect', removeEffect, "Remove effect from item")
 
+addCommand('Separator')
+
+class DialogFunctionCommand:
+    """ This command call a dialog function and apply result of it to all selected items """
+
+    def __init__(self, name, dlgfunc=None, func=None, text=None):
+        self.name = name
+        self.func = func
+        self.dlgfunc = dlgfunc
+        self.text = text
+        addCommand('SC' + self.name, self)
+
+    def GetDescription(self):
+        return self.text
+
+    def GetResources(self):
+        return {
+            'Pixmap': getToolbarIconPath(self.name + '.svg'),
+            'MenuText': self.GetDescription(),
+            'ToolTip': self.GetDescription()
+        }
+
+    def Activated(self):
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is not None:
+            res = self.dlgfunc()
+            if res is not None:
+                for item in scheme.Proxy.scene.selectedItems():
+                    self.func(item.obj, res)
+        # Update sheet after apply effects or actions to items
+        scheme.Proxy.scene.update()
+
+    def IsActive(self):
+        return activeWindowIsScheme()
+
+DialogFunctionCommand('SetFont', fontDialog, setFont, "Set font to text")

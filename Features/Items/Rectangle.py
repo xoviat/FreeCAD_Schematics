@@ -15,7 +15,7 @@ from Features.Utils.Snap import snap
 from Features.Utils.MDI import *
 
 class Rectangle:
-    def __new__(cls, sheet=None):
+    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
         return makeObject(RectangleFeature, RectangleViewProvider, sheet, cls)
 
 # ! Do not change name and location of this class
@@ -23,22 +23,16 @@ class Rectangle:
 class RectangleFeature(StrokeDataProperties, SchemeObjectFeature):
 
     def initDataPropertyies(self, obj):
-        obj.addProperty('App::PropertyDistance', 'Width', 'Size', 'Width of shape', 8+16).Width = 0
-        obj.addProperty('App::PropertyDistance', 'Height', 'Size', 'Height of shape', 8+16).Height = 0
+        pass
 
     def onDataPropertyChanged(self, obj, prop):
-        val = obj.getPropertyByName(prop)
-        if prop == "Width" or prop == "Height":
-            obj.Proxy.item.scene().update()
-            if val != 0:
-                obj.Proxy.item.drawMode = False
+        pass
 
     def getItem(self, obj, sheet):
         return RectangleItem(obj, sheet)
 
     def initRootMethods(self, obj):
-        obj.Width = obj.Width
-        obj.Height = obj.Height
+        pass
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in GuiDocument.xml
@@ -50,14 +44,14 @@ class RectangleViewProvider(StrokeViewProperties, SchemeObjectViewProvider):
     def onViewPropertyChanged(self, vobj, prop):
         pass
 
-class RectangleItem(SchemeObjectItem):
+class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
 
     def getmode(self):
         return self.__drawMode
 
     def setmode(self, mode):
         if mode == True:
-            self.curRelPos = None
+            #self.curRelPos = None # ! mandatory
             self.positionIsSet = False
             self.setFlags(self.ItemIsSelectable)
             self.setAcceptHoverEvents(True)
@@ -69,14 +63,6 @@ class RectangleItem(SchemeObjectItem):
         self.__drawMode = mode
 
     drawMode = property(getmode, setmode)
-
-    def updateTransform(self):
-        # !!! Not correct if item is rotated
-        # set rotation Anchor to center
-        w = self.obj.Width.Value
-        h = self.obj.Height.Value
-        self.setTransform(QtGui.QTransform().translate(-w/2, -h/2), combine=False)
-        self.setTransformOriginPoint(w/2, h/2)
 
     def boundingRect(self):
         if not self.isVisible():
@@ -107,21 +93,46 @@ class RectangleItem(SchemeObjectItem):
         self._shape = path
         return path
 
+    def paint(self, g, option, widget):
+        if not self.isVisible():
+            return
+        if self.positionIsSet:
+            g.save()
+            g.beginNativePainting()
+
+            g.setRenderHints(g.RenderHint.Antialiasing)
+            g.setBrush(QtCore.Qt.NoBrush)
+
+            if self.drawMode:
+                w = self.curRelPos.x()
+                h = self.curRelPos.y()
+            else:
+                w = self.obj.Width.Value
+                h = self.obj.Height.Value
+
+            if self.isSelected():
+                self.drawAnchor(g, w/2, h/2)
+
+            color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
+            if self.isSelected():
+                color = QtCore.Qt.green
+            # pen.setCosmetic(True)
+            pen = self.obj.ViewObject.Proxy.pen
+            pen.setColor(color)
+            # pen.setDashPattern([0.0001, 1.9999])
+            g.setPen(pen)
+            self.drawShape(g, w, h)
+
+            # Selection rect is not displayed during the drawing of shape, to increase performance
+            #if not self.drawMode and self._shape is not None:
+            #    g.setPen(QtGui.QPen(QtCore.Qt.red, 0, QtCore.Qt.SolidLine))
+            #    g.drawPath(self._shape)
+
+            g.endNativePainting()
+            g.restore()
+
     def drawShape(self, g, w, h):
         g.drawRect(QtCore.QRectF(0.0, 0.0, w, h))
-
-    # Applicable to all Items
-    def itemChange(self, change, value):
-        if change == self.ItemPositionChange:
-            self.positionUpdated = True
-            value = snap(value, self.sheet)
-            return value   # Return value with snap to grid
-        if change == self.ItemSelectedChange:
-            if value == True:
-                FreeCAD.Gui.Selection.addSelection(self.obj)
-            else:
-                FreeCAD.Gui.Selection.removeSelection(self.obj)
-        return super().itemChange(change, value)
 
     def mousePressEvent(self, event):
         if self.drawMode:
@@ -132,12 +143,6 @@ class RectangleItem(SchemeObjectItem):
                     self.obj.Y = startPos.y()
                     self.curRelPos = QtCore.QPointF(0, 0)
                     self.positionIsSet = True
-            if event.button() == QtCore.Qt.RightButton:
-                if not self.positionIsSet:
-                    # ! Block context menu at first, before item delete from scene
-                    self.scene().blockContextMenu = True
-                    self.scene().removeItem(self)
-                    FreeCAD.ActiveDocument.removeObject(self.obj.Name)
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 
@@ -152,8 +157,8 @@ class RectangleItem(SchemeObjectItem):
                 self.obj.Y = self.obj.Y.Value + self.obj.Height.Value/2
                 self.setSelected(False)
                 self.drawMode = False
-                inst = self.obj.instance()()
-                inst.Proxy.item.drawMode = True
+                #inst = self.obj.instance()()
+                #inst.Proxy.item.drawMode = True
                 self.positionUpdated = False
         super().mouseReleaseEvent(event)
 

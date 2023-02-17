@@ -8,14 +8,18 @@
 ###############################################################################
 
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
+from Features.Utils.Snap import snap
+import FreeCAD
 
-class SchemeObjectItem(QtWidgets.QGraphicsRectItem):
+class SchemeObjectItem():
 
     def __init__(self, obj, sheet):
         super().__init__()
         self.obj = obj
         self.sheet = sheet
         self.setToolTip(obj.Tooltip)
+        self.curRelPos = None
+        self.doNotResetInstance = False
         # onRestore document or created by command
         self.drawMode = False
         #self.setZValue(-0.8) # Qreal from -1 ... 1. 1 = go to front
@@ -31,40 +35,29 @@ class SchemeObjectItem(QtWidgets.QGraphicsRectItem):
         g.drawLine(QtCore.QPointF(x - s, y - s), QtCore.QPointF(x + s, y + s))
         g.drawLine(QtCore.QPointF(x - s, y + s), QtCore.QPointF(x + s, y - s))
 
-    def paint(self, g, option, widget):
-        if not self.isVisible():
-            return
-        if self.positionIsSet:
-            g.save()
-            g.beginNativePainting()
+    def updateTransform(self):
+        # !!! Not correct if item is rotated
+        # set rotation Anchor to center
+        w = self.obj.Width.Value
+        h = self.obj.Height.Value
+        self.setTransform(QtGui.QTransform().translate(-w/2, -h/2), combine=False)
+        self.setTransformOriginPoint(w/2, h/2)
 
-            g.setRenderHints(g.RenderHint.Antialiasing)
-            g.setBrush(QtCore.Qt.NoBrush)
-
-            if self.drawMode:
-                w = self.curRelPos.x()
-                h = self.curRelPos.y()
+    # Applicable to all Items
+    def itemChange(self, change, value):
+        if change == self.ItemPositionChange:
+            self.positionUpdated = True
+            value = snap(value, self.sheet)
+            return value   # Return value with snap to grid
+        if change == self.ItemSelectedChange:
+            if value == True:
+                FreeCAD.Gui.Selection.addSelection(self.obj)
             else:
-                w = self.obj.Width.Value
-                h = self.obj.Height.Value
+                FreeCAD.Gui.Selection.removeSelection(self.obj)
+        return super().itemChange(change, value)
 
-            if self.isSelected():
-                self.drawAnchor(g, w/2, h/2)
-
-            color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
-            if self.isSelected():
-                color = QtCore.Qt.green
-            # pen.setCosmetic(True)
-            pen = self.obj.ViewObject.Proxy.pen
-            pen.setColor(color)
-            # pen.setDashPattern([0.0001, 1.9999])
-            g.setPen(pen)
-            self.drawShape(g, w, h)
-
-            # Selection rect is not displayed during the drawing of shape, to increase performance
-            #if not self.drawMode and self._shape is not None:
-            #    g.setPen(QtGui.QPen(QtCore.Qt.red, 0, QtCore.Qt.SolidLine))
-            #    g.drawPath(self._shape)
-
-            g.endNativePainting()
-            g.restore()
+    # Clear selection if focus in (For text blocks)
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        FreeCAD.Gui.Selection.clearSelection()
+        FreeCAD.Gui.Selection.addSelection(self.obj)

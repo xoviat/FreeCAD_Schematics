@@ -242,6 +242,37 @@ class SymbolItem(QtSvg.QGraphicsSvgItem):
             pinPath.addEllipse(px-1.5, py-1.5, 3, 3)
             shape = shape - pinPath
 
+        shape = self.pShape(shape)
+        return shape
+
+    def pShape(self, shape):
+        #print(shape.length())
+        print("!!!!!", shape.elementCount())
+        nshape = QtGui.QPainterPath(shape.pointAtPercent(0))
+        pnts = int(shape.length() * 1.5)
+        for i in range(1, pnts):
+            pp = shape.pointAtPercent(1 / pnts * (i - 1))
+            p = shape.pointAtPercent(1 / pnts * i)
+            pn = shape.pointAtPercent(1 / pnts * (i + 1))
+            cp = (pp + pn) / 2
+            # определять по slopeAtPercent
+            if p.x() != cp.x() and p.y() != cp.y():
+                nshape.lineTo(p)
+                #print(p)
+        print("!!!!!",nshape.elementCount())
+        return nshape
+
+    def smoothShape(self, shape):
+        cnt = shape.elementCount()
+        for i in range(cnt):
+            ep = shape.elementAt((i-1) % cnt)
+            e = shape.elementAt(i % cnt)
+            en = shape.elementAt((i+1) % cnt)
+            cx = (ep.x + en.x) / 2
+            cy = (ep.y + en.y) / 2
+            x = (cx + e.x) / 2
+            y = (cy + e.y) / 2
+            shape.setElementPositionAt(i, x, y)
         return shape
 
     def paint(self, g, option, widget):

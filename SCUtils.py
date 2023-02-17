@@ -56,6 +56,19 @@ def MessageBox(typeString, title, text):
     dlg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.values[typeString], title, text)
     dlg.exec_()
 
+# ---------------------- Toolbars actions ----------------------
+
+def GetToolBarButtonAction(commandname):
+    mw = FreeCAD.Gui.getMainWindow()
+    toolbars = mw.findChildren(QtWidgets.QToolBar)
+    for toolbar in toolbars:
+        actions = toolbar.actions()
+        for action in actions:
+            if action.data() == commandname:
+                action.setCheckable(True)
+                return action
+    return None
+
 # ------------------------- Versioning -------------------------
 
 def FreeCADVersion():
@@ -68,7 +81,7 @@ def FreeCADVersion():
         version = minor
     return float(version)
 
-def FreeCADVersionIsHigherThan(major,minor,revision):
+def FreeCADVersionIsHigherThan(major, minor, revision):
     FCmajor = FreeCAD.Version()[0]
     FCminor = FreeCAD.Version()[1]
     FCrevision = FreeCAD.Version()[2]

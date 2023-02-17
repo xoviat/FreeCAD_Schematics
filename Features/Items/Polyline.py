@@ -9,20 +9,24 @@
 
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
 from Features.Items.SchemeObject import *
+from Features.Items.SchemeObjectItem import *
+from Features.Items.StrokeMixin import *
+from Features.Items.MarkersMixin import *
 from Features.Utils.Snap import snap
-from SCUtils import getTreeviewIconPath
 from Features.Utils.MDI import *
 
 class Polyline:
-    def __new__(cls, sheet=None):
+    def __new__(cls, x=None, y=None, sheet=None):
         return makeObject(PolylineFeature, PolylineViewProvider, sheet, cls)
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml
-class PolylineFeature(SchemeObjectFeature):
+class PolylineFeature(MarkersDataProperties, StrokeDataProperties, SchemeObjectFeature):
 
     def initDataPropertyies(self, obj):
-        obj.addProperty('App::PropertyVectorList', 'Points', 'Data', 'Points of polyline', 8 + 16).Points = []
+        obj.setPropertyStatus("Width", "ReadOnly")
+        obj.setPropertyStatus("Height", "ReadOnly")
+        obj.addProperty('App::PropertyVectorList', 'Points', 'Data', 'Points of polyline', 8+16).Points = []
 
     def onDataPropertyChanged(self, obj, prop):
         if prop == "Points":
@@ -52,50 +56,37 @@ class PolylineFeature(SchemeObjectFeature):
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in GuiDocument.xml
-class PolylineViewProvider(SchemeObjectViewProvider):
+class PolylineViewProvider(MarkersViewProperties, StrokeViewProperties, SchemeObjectViewProvider):
 
     def initViewPropertyies(self, vobj):
-        vobj.addProperty('App::PropertyLength', 'StrokeWidth', 'Style', 'Stroke width', 8+16).StrokeWidth = "0.5 mm"
+        pass
 
     def onViewPropertyChanged(self, vobj, prop):
         pass
 
-    def getIcon(self):
-        return getTreeviewIconPath('Polyline.svg')
-
-class PolylineItem(QtWidgets.QGraphicsRectItem):
+class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
 
     def __init__(self, obj, sheet):
-        super().__init__()
-        self.obj = obj
-        self.sheet = sheet
-        self.setToolTip(obj.Tooltip)
         self.path = None
-        self.curRelPos = None
-        if self.obj.Points == []:
-            self.drawMode = True
+        super().__init__(obj, sheet)
+
+    def getmode(self):
+        return self.__drawMode
+
+    def setmode(self, mode):
+        if mode == True:
+            #self.curRelPos = None # ! mandatory
+            self.positionIsSet = False
             self.setFlags(self.ItemIsSelectable)
+            self.setAcceptHoverEvents(True)
         else:
-            # onRestore document
-            # self.updatePoints()
-            self.endDraw()
-        #self.setZValue(-0.8) # Qreal from -1 ... 1. 1 = go to front
-        self.setAcceptHoverEvents(True)
-        self.positionUpdated = False
-        self.setCacheMode(self.NoCache)
+            self.positionIsSet = True
+            self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges)
+            self.setAcceptHoverEvents(False)  # ! Turn off hoverMoveEvent
+            self.updateTransform()
+        self.__drawMode = mode
 
-    def endDraw(self):
-        self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges)
-        self.drawMode = False
-        self.setAcceptHoverEvents(False)    # ! Turn off hoverMoveEvent
-        self.updateAnchor()
-
-    def updateAnchor(self):
-        # !!! Not correct if item is rotated
-        # set rotation Anchor to center
-        center = self.boundingRect().center()
-        #self.setTransform(QtGui.QTransform().translate(-center.x(), -center.y()), combine=True)
-        self.setTransformOriginPoint(center)
+    drawMode = property(getmode, setmode)
 
     def boundingRect(self):
         # Draw mode. Extend rect to maximal size
@@ -129,6 +120,9 @@ class PolylineItem(QtWidgets.QGraphicsRectItem):
             #self.setPen(QtGui.QPen(QtCore.Qt.black, 0, QtCore.Qt.SolidLine))
             super().paint(g, option, widget)
         if self.path is not None:
+            g.save()
+            g.beginNativePainting()
+
             g.setRenderHints(g.RenderHint.Antialiasing)
             color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
             #color = QtCore.Qt.black
@@ -138,25 +132,28 @@ class PolylineItem(QtWidgets.QGraphicsRectItem):
             width = self.obj.ViewObject.StrokeWidth.Value
             g.setPen(QtGui.QPen(color, width, QtCore.Qt.SolidLine, QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
             # drawPath can't draw one point, use drawPoint instead
-            if self.path.elementCount() == 1:
+            cnt = self.path.elementCount()
+            if cnt == 1:
                 g.drawPoint(0, 0)
+                sp1 = sp2 = ep1 = ep2 = QtCore.QPointF(0, 0)
             else:
                 g.drawPath(self.path)
-            if self.drawMode and self.path.elementCount() > 0:
-                g.drawLine(self.path.elementAt(self.path.elementCount()-1), self.curRelPos)
+                sp1 = QtCore.QPointF(self.path.elementAt(0).x, self.path.elementAt(0).y)
+                sp2 = QtCore.QPointF(self.path.elementAt(1).x, self.path.elementAt(1).y)
+                ep1 = QtCore.QPointF(self.path.elementAt(cnt - 2).x, self.path.elementAt(cnt - 2).y)
+                ep2 = QtCore.QPointF(self.path.elementAt(cnt - 1).x, self.path.elementAt(cnt - 1).y)
+            if self.drawMode is True and self.path.elementCount() > 0:
+                g.drawLine(ep2, self.curRelPos)
+                if ep2 != self.curRelPos:
+                    ep1 = ep2
+                    ep2 = self.curRelPos
+                if cnt == 1:
+                    sp1 = ep1
+                    sp2 = ep2
+            self.drawMarkers(g, sp2, sp1, ep1, ep2)
 
-    def itemChange(self, change, value):
-        if change == self.ItemPositionChange:
-            self.positionUpdated = True
-            value = snap(value, self.sheet)
-            return value   # Return value with snap to grid
-        # Applicable to all Items
-        if change == self.ItemSelectedChange:
-            if value == True:
-                FreeCAD.Gui.Selection.addSelection(self.obj)
-            else:
-                FreeCAD.Gui.Selection.removeSelection(self.obj)
-        return super().itemChange(change, value)
+            g.endNativePainting()
+            g.restore()
 
     def mousePressEvent(self, event):
         if self.drawMode:
@@ -166,23 +163,18 @@ class PolylineItem(QtWidgets.QGraphicsRectItem):
                     self.obj.X = startPos.x()
                     self.obj.Y = startPos.y()
                     # Recalc relPos after move object
-                    self.curRelPos = QtCore.QPointF(0, 0)
+                    self.curRelPos = QtCore.QPointF(0.0, 0.0)
                     self.obj.addPoint(0, 0)
                 else:
                     self.obj.addPoint(self.curRelPos.x(), self.curRelPos.y())
                 # Turn back draw mode after add point
                 self.drawMode = True
             if event.button() == QtCore.Qt.RightButton:
-                if self.obj.Points == []:
-                    # ! Block context menu at first, before item delete from scene
-                    self.scene().blockContextMenu = True
-                    self.scene().removeItem(self)
-                    FreeCAD.ActiveDocument.removeObject(self.obj.Name)
-                else:
-                    self.scene().blockContextMenu = True
+                if self.drawMode:
                     self.setSelected(False)
-                    self.endDraw()
-                    self.obj.instance()()
+                    self.drawMode = False
+                    self.positionUpdated = False
+                    self.doNotResetInstance = True
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 

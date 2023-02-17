@@ -14,6 +14,11 @@ import Features.Utils.Snap as SN
 from SCUtils import getTreeviewIconPath
 import FreeCAD
 
+def StartDraw(inst):
+    sheet = tryToGetSchemeFromActiveWindow()
+    if sheet is not None:
+        sheet.Proxy.view.instance = inst
+
 class Draw:
     def __new__(cls, obj):
         obj.Proxy.item.drawMode = True
@@ -48,13 +53,15 @@ def makeObject(objectProxy, viewObjectProxy, sheet, cls):
 
 class SchemeObjectFeature:
 
-    def __init__(self, obj, sheet, type="Unknown", ):
+    def __init__(self, obj, sheet, type="Unknown"):
         FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} init object \n")
         self.Type = type
         obj.addProperty('App::PropertyString', 'Tooltip', 'Data', 'Tooltip of element', 8+16).Tooltip = ''
         obj.addProperty('App::PropertyDistance', 'X', 'Position', 'X position on sheet', 8+16).X = 0
         obj.addProperty('App::PropertyDistance', 'Y', 'Position', 'Y position on sheet', 8+16).Y = 0
         obj.addProperty('App::PropertyAngle', 'Rotation', 'Position', 'Rotation angle of item', 8+16).Rotation = 0
+        obj.addProperty('App::PropertyDistance', 'Width', 'Size', 'Width of shape', 8+16).Width = 0
+        obj.addProperty('App::PropertyDistance', 'Height', 'Size', 'Height of shape', 8+16).Height = 0
         self.initDataPropertyies(obj)
         obj.Proxy = self
         #self.initItem(obj, sheet)
@@ -106,6 +113,12 @@ class SchemeObjectFeature:
         elif prop == "Rotation":
             self.item.setRotation(val)
             self.item.scene().update()
+        elif prop == "Width" or prop == "Height":
+            if "ReadOnly" not in obj.getPropertyStatus(prop):
+                obj.Proxy.item.scene().update()
+                val = obj.getPropertyByName(prop)
+                if val != 0:
+                    obj.Proxy.item.drawMode = False
         elif prop == "Tooltip":
             self.item.setToolTip(val)
         elif prop == "Visibility":
@@ -124,6 +137,8 @@ class SchemeObjectFeature:
         obj.X = obj.X
         obj.Y = obj.Y
         obj.Rotation = obj.Rotation
+        obj.Width = obj.Width
+        obj.Height = obj.Height
         self.initRootMethods(obj)
 
     def onDelete(self):

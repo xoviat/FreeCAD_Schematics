@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 ###############################################################################
 #
-#  Actions.py - Items actions like rotate, flip, lock etc...
+#  Transforms.py - Items actions like rotate, flip, lock etc...
 #
 #  Copyright Evgeniy 2022 <https://github.com/FreeCAD-Tools>
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide2 import QtGui
 
 
 def toFront(obj):

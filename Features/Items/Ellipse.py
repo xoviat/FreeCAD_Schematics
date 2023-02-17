@@ -11,7 +11,7 @@ from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
 from Features.Items.Rectangle import *
 
 class Ellipse:
-    def __new__(cls, sheet=None):
+    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
         return makeObject(EllipseFeature, EllipseViewProvider, sheet, cls)
 
 # ! Do not change name and location of this class

@@ -15,13 +15,15 @@ from Features.SchemeProviderSetup import SchemeViewProviderSetup
 from Features.Utils.SVG import *
 from Features.Utils.MDI import *
 from Features.Utils.QtEnums import *
-import Features.Utils.CopyPaste
 
 def CreateScheme():
-    # Add transaction!
+    # ! Open transaction for sheet is not supported.
+    # If the sheet has been deleted all the hidden items then deleted too, and they are no longer recoverable
+    #FreeCAD.ActiveDocument.openTransaction(f"Sheet added")
     obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', 'Schematic')
     SchemeFeature(obj)
     BluePrintViewProvider(obj.ViewObject)
+    #FreeCAD.ActiveDocument.commitTransaction()
     return obj
 
 class SchemeMDIView(QtWidgets.QMdiSubWindow):
@@ -30,76 +32,6 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
         super().__init__()
         self.obj = obj
         self.setMouseTracking(True)
-        self.contextMenuScenePos = None
-
-    def ZcontextMenuEvent(self, event):
-        # If scene in special mode state not show context menu
-        if self.obj.Proxy.scene.mode is not None:
-            return
-        # Store scene position where user invoke contex menu
-        self.contextMenuScenePos = self.obj.Proxy.scene.mouseCurPos
-        # print(Features.Utils.CopyPaste.sceneCopyPos, self.contextMenuScenePos)
-        contextMenu = QtWidgets.QMenu(parent=self)
-        somethingSelected = False
-        # if objects selected at scene...
-        if len(FreeCAD.Gui.Selection.getSelection()) > 0 :
-            somethingSelected = True
-        action = QtWidgets.QAction('Copy', self, triggered=self.contextMenuCopy)
-        action.setEnabled(somethingSelected)
-        contextMenu.addAction(action)
-        contextMenu.addAction(QtWidgets.QAction('Paste', self, triggered=self.contextMenuPaste))
-        contextMenu.addSeparator()
-        contextMenu.addAction(QtWidgets.QAction('Paste to the same place', self, triggered=self.contextMenuPasteSamePlace))
-        action = QtWidgets.QAction('Duplicate this sheet', self, triggered=self.contextMenuDuplicateSheet)
-        action.setEnabled(False)
-        contextMenu.addAction(action)
-        contextMenu.addSeparator()
-        if somethingSelected:
-            contextMenu.addAction(QtWidgets.QAction('Turn Right +90°', self, triggered=self.contextMenuTurnRight))
-            contextMenu.addAction(QtWidgets.QAction('Turn Left -90°', self, triggered=self.contextMenuTurnLeft))
-        #contextMenu.hideEvent = self.contextMenuClosed
-        # Remove item command?
-        contextMenu.exec_(event.globalPos())
-
-    #def contextMenuClosed(self, event):
-        #print("contextMenuClosed")
-
-    def contextMenuCopy(self):
-        # Store scene pos where context menu is invoked, before copy objects
-        Features.Utils.CopyPaste.sceneCopyPos = self.contextMenuScenePos
-        print("Copy at ", Features.Utils.CopyPaste.sceneCopyPos)
-        FreeCAD.Gui.runCommand('Std_Copy', 0)
-
-    def contextMenuPaste(self):
-        Features.Utils.CopyPaste.scenePastePos = self.contextMenuScenePos
-        Features.Utils.CopyPaste.pasteAtPos = True
-        FreeCAD.Gui.runCommand('Std_Paste', 0)
-        Features.Utils.CopyPaste.pasteAtPos = False
-        # Shift objects after paste
-
-    def contextMenuPasteSamePlace(self):
-        # print("Paste to the same place")
-        FreeCAD.Gui.runCommand('Std_Paste', 0)
-
-    def contextMenuTurnRight(self):
-        for obj in FreeCAD.Gui.Selection.getSelection():
-            if hasattr(obj, 'Rotation'):
-                obj.Rotation = obj.Rotation.Value + (-360+90 if obj.Rotation.Value+90 > 360 else 90)
-
-    def contextMenuDuplicateSheet(self):
-        return
-
-    def contextMenuTurnLeft(self):
-        for obj in FreeCAD.Gui.Selection.getSelection():
-            if hasattr(obj, 'Rotation'):
-                obj.Rotation = obj.Rotation.Value - (-360+90 if obj.Rotation.Value-90 < -360 else 90)
-
-    #def leaveEvent(self, event):
-    #    Features.CopyPaste.mouseCopyPos = None
-    #    print("leaveEvent", event)
-
-    #def enterEvent(self, event):
-    #    print("enterEvent", event)
 
     def closeEvent(self, event):
         #print("Tab is closed")
@@ -109,8 +41,6 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
         super().closeEvent(event)
 
 class SchemeFeature:
-
-    labelfont = QtGui.QFont("Arial", 16, 2, False)
 
     def __init__(self, obj):
         """ Default constructor """
@@ -186,7 +116,6 @@ class SchemeFeature:
 
         self.updateTemplate(obj)
 
-        # Add methods to FeaturePython object https://forum.freecadweb.org/viewtopic.php?t=3691
         def addItem(self, item):
             obj.Elements += [item]
             return
@@ -212,9 +141,12 @@ class SchemeFeature:
                 self.onDelete()
         elif prop == "Template":
             self.updateTemplate(obj)        # Set new template or update existed
-        elif "Grid" in prop or "Snap" in prop:
-            # !!! Grid parameters move to ViewProvider?
-            self.scene.update()             # Force redraw sheet after visible changed
+        elif prop == "MinorGridLineColor":
+            if val[3] == 0.0:
+                self.obj.MinorGridLineColor = val[:-1] + (1.0,)
+        elif prop == "MajorGridLineColor":
+            if val[3] == 0.0:
+                self.obj.MajorGridLineColor = val[:-1] + (1.0,)
         elif prop == "LinesColor" or prop == "PaperColor":
             self.obj.Appearance = list(SheetAppearanceStyles)[-1]  # Activate last style
             return
@@ -234,8 +166,11 @@ class SchemeFeature:
             self.view.setTransform(transform)
             self.view.centerOn(center)
             #print(self.view.transform())
-        elif prop == "Label":
+        elif prop == "Text":
             self.frame.setWindowTitle(val)  # Change window title and tab text updated automatically too
+        if "Grid" in prop or "Snap" in prop:
+            # !!! Grid parameters move to ViewProvider?
+            self.scene.update()             # Force redraw sheet after visible changed
 
     def updateTemplate(self, obj):
         if obj.Template != "":
@@ -250,10 +185,15 @@ class SchemeFeature:
                 data = transformUnits(data)
                 data = self.appearance.decode(data)
                 renderer.load(data.encode())
+            # To the drawing of the template not going slowly, do not create large (the size of a sheet)
+            # groups of elements, and it is also better to replace the text with contours.
+            #svg.setCacheMode(svg.NoCache)
+            svg.setMaximumCacheSize(QtCore.QSize(15000, 15000))
+            svg.setFlags(svg.ItemClipsToShape)
             svg.setSharedRenderer(renderer)
             svg.setElementId("")
             self.scene.svg_template = self.scene.addItem(svg)
-            svg.setPos(0,0)
+            svg.setPos(0, 0)
             svg.setZValue(-1) # QReal from -1 ... 1. -1 = go to back
             self.svg_template = svg
 
@@ -281,22 +221,6 @@ class SchemeFeature:
             self.obj.Visibility = True
         # Set current active window
         activateSceneTab(self.scene)
-        # --- Workaround ---
-        # If select a sheet and make a copy, then each element will be attached
-        # to both the copy and the original. In order for the copy to occur without errors, 
-        # the sheet must be copied along with all the sub-elements.
-        # To avoid errors in the process of copying a sheet, when selecting a sheet, 
-        # all its sub-elements are automatically allocated.
-        # Copying the entire sheet (or sheets) works correctly only if the copy is inserted into the 3D viewing window.
-        # But this does not allow to customize the sheet
-
-        # If select an element, and then the sheet in which the element is located, 
-        # then the selection of all sub elements will not occur. For this works, 
-        # need to call recompute before select sub-elements.
-        #FreeCAD.ActiveDocument.recompute()
-        #for x in self.obj.Elements:
-        #    print('add selection')
-        #    FreeCAD.Gui.Selection.addSelection(x)  
 
     def onDelete(self):
         # If window exist delete all items and close it
@@ -309,24 +233,6 @@ class SchemeFeature:
     def execute(self, obj):
         """ Called on document recompute """
         FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} execute \n")
-
-    #def shapeSetPosAndmakeMovable(self, item, x=0, y=0):
-    #    item.setPos(x, y)
-    #    item.setFlag(QtGui.QGraphicsItem.ItemIsMovable)
-    #    item.setFlag(QtGui.QGraphicsItem.ItemIsSelectable)
-    #    item.setFlag(QtGui.QGraphicsItem.ItemSendsGeometryChanges)
-    #    #item.setElementId("")
-
-    #def addLabel(self, text, x=0, y=0, font=labelfont):
-    #    textitem = self.scene.addText(text, font)
-    #    self.shapeSetPosAndmakeMovable(textitem, x, y)
-    #    textitem.setTextInteractionFlags(QtCore.Qt.TextEditorInteraction)
-    #    # self.addShadow(textitem)
-    #    return textitem
-
-    #def addItem(self, item):
-    #    self.obj.Elements += [item]
-    #    return
 
     def clearSelection(self):
         self.scene.clearSelection()
@@ -366,15 +272,6 @@ class BluePrintViewProvider(SchemeViewProviderSetup):
 
     def claimChildren(self):
         return self.elements
-
-    #def getDetailPath(self, subname, path, append):
-    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} getDetailPath: {str(subname)} {str(path)} {str(append)}\n")
-
-    #def getElementPicked(self, pp):
-    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} getElementPicked: {str(pp)}\n")
-
-    #def onChanged(self, vp, prop):
-    #    FreeCAD.Console.PrintMessage(f"{__class__.__name__} onChanged property: {str(prop)}\n")
 
     def getIcon(self):
         return getTreeviewIconPath('Scheme.svg')

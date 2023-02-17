@@ -13,17 +13,20 @@ from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
 from Features.Utils.Snap import snap
 from Features.Utils.QtEnums import *
 from Features.SchemeContextMenu import ContextMenu
+from Features.Items.SchemeObject import *
 
 class SchemeGraphicsView(QtWidgets.QGraphicsView):
 
     def __init__(self):
         super().__init__()
         #self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
-        self.setViewportUpdateMode(self.ViewportUpdateMode.NoViewportUpdate) # #FullViewportUpdate) FullViewportUpdate)
+        self.setViewportUpdateMode(self.ViewportUpdateMode.FullViewportUpdate)
         self.setDragMode(self.RubberBandDrag) #ScrollHandDrag)
         self.setMouseTracking(True)
-        #self.setCacheMode(self.CacheNone)
+        self.setCacheMode(self.CacheBackground)
         self.dragMode = False
+        self.instance = None
+        self.currentObj = None
 
     def getScale(self):
         t = self.transform()
@@ -33,24 +36,34 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
         return scale
 
     def mousePressEvent(self, event):
-        # print("mpress event", event)
         # Update on left click (selection/deselection)
         if event.button() == QtCore.Qt.LeftButton:
+            if self.instance is not None:
+                if self.currentObj is not None and self.currentObj.Proxy.item.drawMode is True:
+                    pass
+                else:
+                    self.currentObj = Draw(self.instance())
             self.scene().update()
+        # ! call super().mousePressEvent only after object is create
+        super().mousePressEvent(event)
         if event.button() == QtCore.Qt.MiddleButton:
             # rubber mode of
             self.sceneCenter = self.mapToScene(self.viewport().rect().center())
             self.startPos = event.localPos()
             self.dragMode = True
             self.viewport().setCursor(QtCore.Qt.ClosedHandCursor)
-        super().mousePressEvent(event)
         if event.button() == QtCore.Qt.RightButton:
             self.viewport().unsetCursor()
-            if not self.scene().blockContextMenu:
+            if self.instance is not None and self.currentObj is not None:
+                if self.currentObj.Proxy.item.doNotResetInstance:
+                    self.currentObj.Proxy.item.doNotResetInstance = False
+                else:
+                    self.instance = None
+                    self.currentObj = None
+            else:
                 contextMenu = ContextMenu(self)
                 contextMenu.addStandartActions()
                 contextMenu.invokeAt(event.globalPos())
-        self.scene().blockContextMenu = False
 
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.MiddleButton:
@@ -62,7 +75,8 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
     def mouseMoveEvent(self, event):
         #print(f"mmove event {event.localPos()}")
         overItem = self.itemAt(event.localPos().toPoint())
-        if hasattr(overItem, "drawMode") and overItem.drawMode:
+        #if hasattr(overItem, "drawMode") and overItem.drawMode:
+        if self.instance is not None:
             self.viewport().setCursor(QtCore.Qt.CrossCursor)
         else:
             if overItem is not None and (overItem.flags() & overItem.ItemIsMovable):
@@ -94,7 +108,9 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         self.obj = obj
         self.mouseCurPos = None
         self.points = []
-        self.blockContextMenu = False
+
+    #def drawBackground(self, g, rect):
+    #   print("drawBackground")
 
     def drawForeground(self, g, rect):
         ### g.drawText(50, 50, str(len(self.items())))
@@ -102,6 +118,9 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         # ! Do not paint anything while the file is loading
         if not hasattr(self.obj, "Proxy"):
             return
+
+        #svg = self.obj.Proxy.svg_template
+        #svg.paint(g, None, None)
 
         # Show grid
         if self.obj.GridVisible:
@@ -158,7 +177,7 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         # Snap items to grid after it's position is updated
         items = []
         for item in self.selectedItems():
-            if item.positionUpdated == True:
+            if hasattr(item, "positionUpdated") and item.positionUpdated == True:
                 items.append(item)
         if items != []:
             #itemsStr = " ".join(map(lambda i: i.obj.Name, items))  # List of items (Deprecated)

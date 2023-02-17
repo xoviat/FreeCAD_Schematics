@@ -13,8 +13,8 @@ from Features.Utils.QtEnums import *
 class StrokeDataProperties:
 
     def __init__(self, obj, sheet, type="Unknown"):
-        pass
         super().__init__(obj, sheet, type)
+        pass
 
     def onChanged(self, obj, prop):
         super().onChanged(obj, prop)
@@ -23,6 +23,9 @@ class StrokeDataProperties:
     def initItem(self, obj, sheet):
         super().initItem(obj, sheet)
         obj.ViewObject.StrokeWidth = obj.ViewObject.StrokeWidth
+        obj.ViewObject.StrokeDash = obj.ViewObject.StrokeDash
+        obj.ViewObject.StrokeCap = obj.ViewObject.StrokeCap
+        obj.ViewObject.StrokeJoin = obj.ViewObject.StrokeJoin
 
 class StrokeViewProperties:
 
@@ -42,13 +45,14 @@ class StrokeViewProperties:
         #val = vobj.getPropertyByName(prop)
         # Pen recreated only if property's changed
         if prop == "StrokeWidth" or prop == "StrokeDash" or prop == "StrokeCap" or prop == "StrokeJoin":
-            if prop == "StrokeWidth":
-                vobj.Object.Proxy.item.shape()
-            vobj.Object.Proxy.item.scene().update()
-            self.pen = QtGui.QPen(QtCore.Qt.green,
-                vobj.StrokeWidth.Value,
-                QtLineStyles[vobj.StrokeDash],
-                QtCapStyles[vobj.StrokeCap],
-                QtJoinStyles[vobj.StrokeJoin])
-
-
+            if hasattr(vobj, "StrokeWidth"):
+                self.pen = QtGui.QPen(QtCore.Qt.green,
+                    vobj.StrokeWidth.Value,
+                    QtLineStyles[vobj.StrokeDash],
+                    QtCapStyles[vobj.StrokeCap],
+                    QtJoinStyles[vobj.StrokeJoin])
+            # Add check on item when this is mixin
+            if hasattr(self, "item"):
+                if prop == "StrokeWidth":
+                    vobj.Object.Proxy.item.shape()
+                vobj.Object.Proxy.item.scene().update()

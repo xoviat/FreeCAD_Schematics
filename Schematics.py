@@ -22,17 +22,15 @@ polyline = Schematics.Polyline()
 
 """
 
-from Features.Items.SchemeObject import Draw
-from Features.Items.Polyline import Polyline
-from Features.Items.Rectangle import Rectangle
-from Features.Items.Ellipse import Ellipse
-from Features.Items.Line import Line
-
-from Features.Items.Effects import *
-
 from SCUtils import getRootPath
 
 def help():
     with open(getRootPath('README.md'), 'r') as file:
         str = file.read()
         print(str)
+
+def gethelp():
+    with open(getRootPath('README.md'), 'r') as file:
+        str = file.read()
+        print(str)
+        return str

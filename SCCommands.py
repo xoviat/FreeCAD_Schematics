@@ -47,6 +47,7 @@ class SCGrid:
     """ Show or hide the grid on the sheet """
 
     def GetResources(self):
+        self.action = None
         return {
             'Pixmap': getToolbarIconPath('Grid.svg'),
             'MenuText': "Show or hide the grid on the sheet",
@@ -57,10 +58,17 @@ class SCGrid:
         scheme = tryToGetSchemeFromActiveWindow()
         if scheme is not None:
             scheme.GridVisible = not scheme.GridVisible
+        self.action.setChecked(scheme.GridVisible) # ! Duplicated to avoid blinking when pressed
         return
 
     def IsActive(self):
-        return activeWindowIsScheme()
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return False
+        if self.action is None:
+            self.action = GetToolBarButtonAction("SCGrid")
+        self.action.setChecked(scheme.GridVisible)
+        return True
 
 addCommand('SCGrid', SCGrid())
 
@@ -68,6 +76,7 @@ class SCSnap:
     """ Enable / Disable Snap sheet items to grid """
 
     def GetResources(self):
+        self.action = None
         return {
             'Pixmap': getToolbarIconPath('Snap.svg'),
             'MenuText': "Enable / Disable Snap sheet items to grid",
@@ -78,10 +87,17 @@ class SCSnap:
         scheme = tryToGetSchemeFromActiveWindow()
         if scheme is not None:
             scheme.SnapEnabled = not scheme.SnapEnabled
+        self.action.setChecked(scheme.SnapEnabled)  # ! Duplicated to avoid blinking when pressed
         return
 
     def IsActive(self):
-        return activeWindowIsScheme()
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return False
+        if self.action is None:
+            self.action = GetToolBarButtonAction("SCSnap")
+        self.action.setChecked(scheme.SnapEnabled)
+        return True
 
 addCommand('SCSnap', SCSnap())
 
