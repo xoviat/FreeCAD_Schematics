@@ -7,12 +7,11 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Items.SchemeObject import *
-from Features.Items.SchemeObjectItem import *
-from Features.Items.StrokeMixin import *
-from Features.Utils.Snap import snap
-from Features.Utils.MDI import *
+from PySide2 import QtGui, QtCore, QtWidgets
+from Schematics.Features.Items.SchemeObject import *
+from Schematics.Features.Items.SchemeObjectItem import *
+from Schematics.Features.Utils.Snap import snap
+from Schematics.Features.Items.StrokeMixin import *
 
 class Rectangle:
     def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
@@ -46,24 +45,6 @@ class RectangleViewProvider(StrokeViewProperties, SchemeObjectViewProvider):
 
 class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
 
-    def getmode(self):
-        return self.__drawMode
-
-    def setmode(self, mode):
-        if mode == True:
-            #self.curRelPos = None # ! mandatory
-            self.positionIsSet = False
-            self.setFlags(self.ItemIsSelectable)
-            self.setAcceptHoverEvents(True)
-        else:
-            self.positionIsSet = True
-            self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges)
-            self.setAcceptHoverEvents(False)  # ! Turn off hoverMoveEvent
-            self.updateTransform()
-        self.__drawMode = mode
-
-    drawMode = property(getmode, setmode)
-
     def boundingRect(self):
         if not self.isVisible():
             return QtCore.QRectF(0, 0, 0, 0)
@@ -90,46 +71,39 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
             # Do not draw internal rect if shape is small
             if rect.width() > 0 and rect.height() > 0:
                 path.addRect(rect)
-        self._shape = path
         return path
 
     def paint(self, g, option, widget):
         if not self.isVisible():
             return
-        if self.positionIsSet:
-            g.save()
-            g.beginNativePainting()
+        g.save()
+        g.beginNativePainting()
 
-            g.setRenderHints(g.RenderHint.Antialiasing)
-            g.setBrush(QtCore.Qt.NoBrush)
+        g.setRenderHints(g.RenderHint.Antialiasing)
+        g.setBrush(QtCore.Qt.NoBrush)
 
-            if self.drawMode:
-                w = self.curRelPos.x()
-                h = self.curRelPos.y()
-            else:
-                w = self.obj.Width.Value
-                h = self.obj.Height.Value
+        if self.drawMode:
+            w = self.curRelPos.x()
+            h = self.curRelPos.y()
+        else:
+            w = self.obj.Width.Value
+            h = self.obj.Height.Value
 
-            if self.isSelected():
-                self.drawAnchor(g, w/2, h/2)
+        if self.isSelected():
+            self.drawAnchor(g, w/2, h/2)
 
-            color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
-            if self.isSelected():
-                color = QtCore.Qt.green
-            # pen.setCosmetic(True)
-            pen = self.obj.ViewObject.Proxy.pen
-            pen.setColor(color)
-            # pen.setDashPattern([0.0001, 1.9999])
-            g.setPen(pen)
-            self.drawShape(g, w, h)
+        color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
+        if self.isSelected():
+            color = QtCore.Qt.green
+        # pen.setCosmetic(True)
+        pen = self.obj.ViewObject.Proxy.pen
+        pen.setColor(color)
+        # pen.setDashPattern([0.0001, 1.9999])
+        g.setPen(pen)
+        self.drawShape(g, w, h)
 
-            # Selection rect is not displayed during the drawing of shape, to increase performance
-            #if not self.drawMode and self._shape is not None:
-            #    g.setPen(QtGui.QPen(QtCore.Qt.red, 0, QtCore.Qt.SolidLine))
-            #    g.drawPath(self._shape)
-
-            g.endNativePainting()
-            g.restore()
+        g.endNativePainting()
+        g.restore()
 
     def drawShape(self, g, w, h):
         g.drawRect(QtCore.QRectF(0.0, 0.0, w, h))
@@ -137,12 +111,10 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
     def mousePressEvent(self, event):
         if self.drawMode:
             if event.button() == QtCore.Qt.LeftButton:
-                if not self.positionIsSet:
-                    startPos = snap(event.scenePos(), self.sheet)
-                    self.obj.X = startPos.x()
-                    self.obj.Y = startPos.y()
-                    self.curRelPos = QtCore.QPointF(0, 0)
-                    self.positionIsSet = True
+                startPos = snap(event.scenePos(), self.sheet)
+                self.obj.X = startPos.x()
+                self.obj.Y = startPos.y()
+                self.curRelPos = QtCore.QPointF(0, 0)
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 

@@ -7,8 +7,8 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Items.Rectangle import *
+from PySide2 import QtGui, QtCore
+from Schematics.Features.Items.Rectangle import *
 
 class Line:
     def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
@@ -29,7 +29,6 @@ class LineViewProvider(RectangleViewProvider):
 class LineItem(RectangleItem):
 
     def shape(self):
-        import math
         path = QtGui.QPainterPath()
         if self.drawMode:
             path.addRect(self.boundingRect())

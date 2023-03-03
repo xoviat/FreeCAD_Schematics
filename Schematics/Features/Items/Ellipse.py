@@ -7,8 +7,8 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Items.Rectangle import *
+from PySide2 import QtGui, QtCore
+from Schematics.Features.Items.Rectangle import *
 
 class Ellipse:
     def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):

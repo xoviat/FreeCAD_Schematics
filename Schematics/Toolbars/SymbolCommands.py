@@ -1,23 +1,22 @@
 # -*- coding: utf-8 -*-
 ###############################################################################
 #
-#  SCSymbolCommands.py - Toolbar of symbol commands
+#  SymbolCommands.py - Toolbar of symbol commands
 #
 #  Copyright Evgeniy 2022 <https://github.com/FreeCAD-Tools>
 #
 ###############################################################################
 
-import random
-
 from SCUtils import *
-import Features.Items.Symbol as Symbol
-from Features.Functions.Effects import *
-from Features.Functions.Transforms import *
-from Features.Functions.TextStyle import *
-from Features.Items.Polyline import *
-from Features.Items.Ellipse import *
-from Features.Items.Line import *
-from Features.Items.Text import *
+from Schematics.Features.Functions.Effects import *
+from Schematics.Features.Functions.Transforms import *
+from Schematics.Features.Functions.TextStyle import *
+from Schematics.Features.Items.Polyline import *
+from Schematics.Features.Items.Ellipse import *
+from Schematics.Features.Items.Line import *
+from Schematics.Features.Items.Text import *
+from Schematics.Features.Items.Symbol import *
+from Schematics.Features.Utils.SVGSymbolsCache import loadSVGSymbol
 
 SymbolCommandList = []
 
@@ -48,27 +47,37 @@ class SCDrawWireMode:
         return activeWindowIsScheme()
 
 #addCommand('SCDrawWireMode', SCDrawWireMode())
-
-addCommand('Separator')
+#addCommand('Separator')
 
 class PrimitiveCommand:
     """ Add primitive """
 
-    def __init__(self, name, inst):
+    def __init__(self, name, inst, group=None):
         self.name = name
         self.inst = inst
+        self.group = group
         addCommand('SC' + self.name, self)
 
     def GetResources(self):
+        iconPath = getToolbarIconPath(f"{self.name}.svg")
+        if not os.path.exists(iconPath):
+            iconPath = getSymbolIconPath(f"{self.name}.svg")
+        if not os.path.exists(iconPath) and self.group is not None:
+            iconPath = getSymbolPath(f"{os.path.join('GOST',os.path.join(self.group,self.name))}.svg")
+        self.iconPath = iconPath
         return {
-            'Pixmap': getToolbarIconPath(self.name + '.svg'),
+            'Pixmap': iconPath,
             'MenuText': "Add " + self.name,
             'ToolTip': "Add " + self.name
         }
 
     def Activated(self):
+        self.inst.typ = None
+        if self.group is not None:
+            self.inst.typ = self.name   # ! Only for symbols
+            self.inst.grp = self.group  # ! Only for symbols
+            self.inst.std = 'GOST'
         StartDraw(self.inst)
-        #obj = Draw(self.inst())
 
     def IsActive(self):
         return activeWindowIsScheme()
@@ -81,34 +90,7 @@ PrimitiveCommand('Text', Text)
 
 addCommand('Separator')
 
-class SymbolCommand:
-    """ Add Symbol command """
-
-    def __init__(self, group, type):
-        self.Group = group
-        self.Type = type
-
-    def GetResources(self):
-        iconPath = getSymbolIconPath(f"{self.Type}.svg")
-        if not os.path.exists(iconPath):
-            iconPath = getSymbolPath(f"{os.path.join(self.Group,self.Type)}.svg")
-        return {'Pixmap': iconPath,
-                'MenuText': f"Add {self.Type} symbol",
-                'ToolTip': f"Add {self.Type} symbol"}
-
-    def Activated(self):
-        scheme = tryToGetSchemeFromActiveWindow()
-        if scheme is not None:
-            obj = Symbol.Create(scheme, self.Type, random.randint(100, 300), random.randint(100, 200))
-            FreeCAD.ActiveDocument.recompute()
-        return
-
-    def IsActive(self):
-        return activeWindowIsScheme()
-
-from Features.Utils.SVGSymbolsCache import loadSVGSymbol
-
-dir = pathToSymbolsFolder
+dir = pathToSymbolsFolder+"\\GOST"
 for subdir, dirs, files in os.walk(dir):
     for file in files:
         if ".svg" in file.lower():
@@ -117,11 +99,9 @@ for subdir, dirs, files in os.walk(dir):
             group = ''
             if subdir != dir:
                 group = os.path.basename(subdir)
-            #print(group, typ)
-            loadSVGSymbol(typ, os.path.join(subdir, file))
-            cmd = 'SC' + typ
-            FreeCAD.Gui.addCommand(cmd, SymbolCommand(group, typ))  # Add command to FreeCAD Environment
-            SymbolCommandList.append(cmd)  # Add command to list of Symbols toolbar
+            print(group)
+            loadSVGSymbol("GOST"+'\\'+group+'\\'+typ) #typ, os.path.join(subdir, file))
+            PrimitiveCommand(typ, Symbol, group)
 
 addCommand('Separator')
 

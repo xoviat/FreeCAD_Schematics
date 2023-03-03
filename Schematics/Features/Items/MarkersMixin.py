@@ -8,13 +8,12 @@
 ###############################################################################
 
 from PySide2 import QtGui, QtCore
-from Features.Utils.QtEnums import *
 import math
 
 class MarkersDataProperties:
 
-    def __init__(self, obj, sheet, type="Unknown"):
-        super().__init__(obj, sheet, type)
+    def __init__(self, obj, type="Unknown"):
+        super().__init__(obj, type)
         pass
 
     def onChanged(self, obj, prop):

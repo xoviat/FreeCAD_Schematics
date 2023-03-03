@@ -107,7 +107,7 @@ for x in range(0,5):
         l = Gui.ActiveDocument.ActiveObject
         l.Object.X = 70 + x * 20
         l.Object.Y = 50 + y * 20
-        Gui.runCommand('SCRelayCoil',0)
+        Gui.runCommand('SCCoil',0)
         r = Gui.ActiveDocument.ActiveObject
         r.Object.X = 80 + x * 20
         r.Object.Y = 60 + y * 20
@@ -116,7 +116,7 @@ for x in range(0,5):
 #END
 ```
 
-Next example shows how to customize scheme sheet after creation:
+Next example shows how to customize scheme sheet grid after creation:
 
 ```python
 Gui.runCommand('SCNewScheme',0)
@@ -127,8 +127,8 @@ sheet.Visibility = True
 
 # Change data properties (presented in Data tab)
 sheetData = sheet.Object
-sheetData.GridVisible = True
-sheetData.GridSpacing = '1.00 mm'
+sheetData.ViewObject.GridVisible = True
+sheetData.ViewObject.GridSpacing = '1.00 mm'
 sheetData.MajorGridLineEvery = 10
 sheetData.MajorGridLineColor = (0.00,0.00,1.00) # Blue
 sheetData.MajorGridLineStyle = 2 # Dash style

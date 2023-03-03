@@ -7,10 +7,9 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Utils.SVGSymbolsCache import transformUnits
-from Features.Utils.MDI import *
-import Features.Utils.CopyPaste
+from PySide2 import QtGui, QtWidgets
+from Schematics.Features.Utils.MDI import *
+import Schematics.Features.Utils.CopyPaste
 
 class ContextMenu(QtWidgets.QMenu):
 
@@ -52,15 +51,15 @@ class ContextMenu(QtWidgets.QMenu):
 
     def copy(self):
         # Store scene pos where context menu is invoked, before copy objects
-        Features.Utils.CopyPaste.sceneCopyPos = self.contextMenuScenePos
-        print("Copy at ", Features.Utils.CopyPaste.sceneCopyPos)
+        Schematics.Features.Utils.CopyPaste.sceneCopyPos = self.contextMenuScenePos
+        print("Copy at ", Schematics.Features.Utils.CopyPaste.sceneCopyPos)
         FreeCAD.Gui.runCommand('Std_Copy', 0)
 
     def paste(self):
-        Features.Utils.CopyPaste.scenePastePos = self.contextMenuScenePos
-        Features.Utils.CopyPaste.pasteAtPos = True
+        Schematics.Features.Utils.CopyPaste.scenePastePos = self.contextMenuScenePos
+        Schematics.Features.Utils.CopyPaste.pasteAtPos = True
         FreeCAD.Gui.runCommand('Std_Paste', 0)
-        Features.Utils.CopyPaste.pasteAtPos = False
+        Schematics.Features.Utils.CopyPaste.pasteAtPos = False
         # Shift objects after paste
 
     def pasteAtSamePlace(self):

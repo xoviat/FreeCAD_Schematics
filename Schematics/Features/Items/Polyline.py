@@ -7,13 +7,12 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Items.SchemeObject import *
-from Features.Items.SchemeObjectItem import *
-from Features.Items.StrokeMixin import *
-from Features.Items.MarkersMixin import *
-from Features.Utils.Snap import snap
-from Features.Utils.MDI import *
+from PySide2 import QtGui, QtCore, QtWidgets
+from Schematics.Features.Items.SchemeObject import *
+from Schematics.Features.Items.SchemeObjectItem import *
+from Schematics.Features.Utils.Snap import snap
+from Schematics.Features.Items.StrokeMixin import *
+from Schematics.Features.Items.MarkersMixin import *
 
 class Polyline:
     def __new__(cls, x=None, y=None, sheet=None):
@@ -69,24 +68,6 @@ class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
     def __init__(self, obj, sheet):
         self.path = None
         super().__init__(obj, sheet)
-
-    def getmode(self):
-        return self.__drawMode
-
-    def setmode(self, mode):
-        if mode == True:
-            #self.curRelPos = None # ! mandatory
-            self.positionIsSet = False
-            self.setFlags(self.ItemIsSelectable)
-            self.setAcceptHoverEvents(True)
-        else:
-            self.positionIsSet = True
-            self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges)
-            self.setAcceptHoverEvents(False)  # ! Turn off hoverMoveEvent
-            self.updateTransform()
-        self.__drawMode = mode
-
-    drawMode = property(getmode, setmode)
 
     def boundingRect(self):
         # Draw mode. Extend rect to maximal size

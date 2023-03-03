@@ -7,12 +7,11 @@
 #
 ###############################################################################
 
-import FreeCAD
-from PySide2 import QtWidgets
-from Features.Utils.ActionsReplacer import *
-from Features.Utils.MDI import *
-from Features.Utils.Printing import PrintPreviewAction
+from Schematics.Features.Utils.ActionsReplacer import *
+from Schematics.Features.Utils.MDI import *
+from Schematics.Features.Utils.Printing import PrintPreviewAction
 from SCUtils import *
+from Schematics.Utils import MessageBox
 
 
 def setup():

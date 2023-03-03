@@ -7,11 +7,10 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Items.SchemeObject import *
-from Features.Items.SchemeObjectItem import *
-from Features.Utils.Snap import snap
-from Features.Utils.MDI import *
+from PySide2 import QtGui, QtCore, QtWidgets
+from Schematics.Features.Items.SchemeObject import *
+from Schematics.Features.Items.SchemeObjectItem import *
+from Schematics.Features.Utils.Snap import snap
 
 class Text:
     def __new__(cls, x=None, y=None, sheet=None):
@@ -82,9 +81,9 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
     def shape(self):
         path = QtGui.QPainterPath()
         path.addRect(self.boundingRect())
-        self._shape = path
         return path
 
+    # Override drawMode when this item is focusable
     def getmode(self):
         return self.__drawMode
 
@@ -100,10 +99,7 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
     drawMode = property(getmode, setmode)
 
     def paint(self, g, option, widget):
-        g.setRenderHints(#g.RenderHint.SmoothPixmapTransform |
-                         g.RenderHint.TextAntialiasing |
-                         g.RenderHint.Antialiasing
-                        )
+        g.setRenderHints(g.RenderHint.TextAntialiasing | g.RenderHint.Antialiasing)   # ...SmoothPixmapTransform
         super().paint(g, option, widget)
 
     def mousePressEvent(self, event):
@@ -118,6 +114,13 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 
+    # Text changed
     def contentsChanged(self):
         self.doNotUpdateText = True
         self.obj.Text = self.document().toHtml()
+
+    # Clear selection if focus in (For text blocks)
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        FreeCAD.Gui.Selection.clearSelection()
+        FreeCAD.Gui.Selection.addSelection(self.obj)

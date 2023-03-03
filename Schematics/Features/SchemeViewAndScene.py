@@ -7,15 +7,14 @@
 #
 ###############################################################################
 
-import FreeCAD
 import math
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Utils.Snap import snap
-from Features.Utils.QtEnums import *
-from Features.SchemeContextMenu import ContextMenu
-from Features.Items.SchemeObject import *
+from PySide2 import QtGui, QtCore, QtWidgets
+from Schematics.Features.Utils.QtEnums import *
+from Schematics.Features.SchemeContextMenu import ContextMenu
+from Schematics.Features.Items.SchemeObject import *
+from Schematics.Features.CursorItemMixin import *
 
-class SchemeGraphicsView(QtWidgets.QGraphicsView):
+class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
 
     def __init__(self):
         super().__init__()
@@ -59,6 +58,7 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
                     self.currentObj.Proxy.item.doNotResetInstance = False
                 else:
                     self.instance = None
+                    self.underCursorItem = None
                     self.currentObj = None
             else:
                 contextMenu = ContextMenu(self)
@@ -73,15 +73,16 @@ class SchemeGraphicsView(QtWidgets.QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        #print(f"mmove event {event.localPos()}")
+        #print(f"mmove event {event.localPos()}, {self.mapToScene(event.pos())}")
+        if self.underCursorItem is not None:
+            self.underCursorItem.mousePos(self.mapToScene(event.pos()))
         overItem = self.itemAt(event.localPos().toPoint())
         #if hasattr(overItem, "drawMode") and overItem.drawMode:
         if self.instance is not None:
             self.viewport().setCursor(QtCore.Qt.CrossCursor)
         else:
             if overItem is not None and (overItem.flags() & overItem.ItemIsMovable):
-                    #(overItem.flags() & overItem.ItemIsSelectable)
-                self.viewport().setCursor(QtCore.Qt.SizeAllCursor)
+                self.viewport().setCursor(overItem.getCursor())
             else:
                 self.viewport().setCursor(QtCore.Qt.ArrowCursor)
 
@@ -106,6 +107,7 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, obj):
         super().__init__()
         self.obj = obj
+        self.vobj = obj.ViewObject
         self.mouseCurPos = None
         self.points = []
 
@@ -123,22 +125,22 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         #svg.paint(g, None, None)
 
         # Show grid
-        if self.obj.GridVisible:
+        if self.vobj.GridVisible:
 
-            minorBrush = QtGui.QColor.fromRgbF(*self.obj.MinorGridLineColor)
-            minorPen = QtGui.QPen(minorBrush, self.obj.MinorGridLineWidth.Value,
-                QtLineStyles[self.obj.MinorGridLineStyle], QtCore.Qt.FlatCap, QtCore.Qt.RoundJoin)
+            minorBrush = QtGui.QColor.fromRgbF(*self.vobj.MinorGridLineColor)
+            minorPen = QtGui.QPen(minorBrush, self.vobj.MinorGridLineWidth.Value,
+                QtLineStyles[self.vobj.MinorGridLineStyle], QtCore.Qt.FlatCap, QtCore.Qt.RoundJoin)
 
-            majorBrush = QtGui.QColor.fromRgbF(*self.obj.MajorGridLineColor)
-            majorPen = QtGui.QPen(majorBrush, self.obj.MajorGridLineWidth.Value,
-                QtLineStyles[self.obj.MajorGridLineStyle], QtCore.Qt.SquareCap, QtCore.Qt.RoundJoin)
+            majorBrush = QtGui.QColor.fromRgbF(*self.vobj.MajorGridLineColor)
+            majorPen = QtGui.QPen(majorBrush, self.vobj.MajorGridLineWidth.Value,
+                QtLineStyles[self.vobj.MajorGridLineStyle], QtCore.Qt.SquareCap, QtCore.Qt.RoundJoin)
 
             g.setPen(minorPen)
 
-            minorGridStep = self.obj.GridSpacing.Value
-            majorGridStep = self.obj.MajorGridLineEvery
-            sheetWidth = self.obj.ViewObject.Width
-            sheetHeight = self.obj.ViewObject.Height
+            minorGridStep = self.vobj.GridSpacing.Value
+            majorGridStep = self.vobj.MajorGridLineEvery
+            sheetWidth = self.vobj.Width
+            sheetHeight = self.vobj.Height
 
             minorLinesIsVisible = self.obj.Proxy.view.getScale() > 3
             

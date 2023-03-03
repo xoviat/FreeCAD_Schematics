@@ -12,13 +12,12 @@ from SCUtils import getSymbolPath
 
 cache = dict()
 
-def loadSVGSymbol(type, path=None):
+def loadSVGSymbol(type):
     global cache
     #print(f"Cache size: {getCacheSize()} bytes. Cache data:{cache}")
     cacheData = cache.get(type)
     if cacheData is None:
-        if path is None:
-            path = getSymbolPath(type + ".svg")
+        path = getSymbolPath(type + ".svg")
         with open(path, "r", encoding='utf-8') as f:
             data = f.read()
             data = transformUnits(data)

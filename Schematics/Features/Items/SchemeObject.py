@@ -7,39 +7,51 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.Utils.MDI import *
-import Features.Utils.CopyPaste as Clipbuffer
-import Features.Utils.Snap as SN
+from PySide2 import QtWidgets
+from Schematics.Features.Utils.MDI import *
+import Schematics.Features.Utils.CopyPaste as Clipbuffer
+import Schematics.Features.Utils.Snap as SN
 from SCUtils import getTreeviewIconPath
+from Schematics.Features.CursorItemMixin import CursorSymbolItem
 import FreeCAD
+import Schematics.Features.Utils.SoftMigration as SoftMigration
 
 def StartDraw(inst):
     sheet = tryToGetSchemeFromActiveWindow()
     if sheet is not None:
         sheet.Proxy.view.instance = inst
+        if inst.typ is not None:
+            item = CursorSymbolItem(inst.typ, inst.grp, inst.std, sheet)
+        else:
+            item = None   # Remove under cursor item
+        sheet.Proxy.view.underCursorItem = item
 
 class Draw:
     def __new__(cls, obj):
         obj.Proxy.item.drawMode = True
         return obj
 
-def makeObject(objectProxy, viewObjectProxy, sheet, cls):
+def makeObject(objectProxy, viewObjectProxy, sheet, cls, typ=None, grp=None, std=None):
     if sheet is None:
         sheet = tryToGetSchemeFromActiveWindow()
         if sheet is None:
             error = f"An attempt to create an {cls.__name__}() object " \
                     f"in the current active window was rejected. " \
                     f"Since the current active window is not contain a schematic. " \
-                    f"To create new {cls.__name__} in the specify schematic use: {cls.__name__}(targetSchematic) "
+                    f"To create new {cls.__name__} in the specify schematic sheet use: " \
+                    f"Schematics.{cls.__name__}(targetSheetObject) "
             raise RuntimeError(error)
 
-    # !!! Need clear selection at start
-    print("added")
-    FreeCAD.ActiveDocument.openTransaction(f"{cls.__name__} added")
-    obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', cls.__name__)
-    objectProxy(obj, sheet, cls.__name__)
+    # !!! Need clear selection at start or not?
+    if typ is None:
+        typ = cls.__name__
+    FreeCAD.ActiveDocument.openTransaction(f"{typ} added")
+    obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', typ)
+    objectProxy(obj, typ)
     viewObjectProxy(obj.ViewObject)
+    if grp is not None:
+        obj.Group = grp
+        obj.Standard = std
     obj.Proxy.initItem(obj, sheet)
     sheet.addItem(obj)
     FreeCAD.ActiveDocument.commitTransaction()
@@ -53,9 +65,11 @@ def makeObject(objectProxy, viewObjectProxy, sheet, cls):
 
 class SchemeObjectFeature:
 
-    def __init__(self, obj, sheet, type="Unknown"):
+    def __init__(self, obj, type="Unknown"):
         FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} init object \n")
-        self.Type = type
+        obj.addProperty('App::PropertyString', 'Type', 'Data', 'Element type', 8+16).Type = type
+        obj.setPropertyStatus("Type", "ReadOnly")
+        obj.setPropertyStatus("Type", "Hidden")
         obj.addProperty('App::PropertyString', 'Tooltip', 'Data', 'Tooltip of element', 8+16).Tooltip = ''
         obj.addProperty('App::PropertyDistance', 'X', 'Position', 'X position on sheet', 8+16).X = 0
         obj.addProperty('App::PropertyDistance', 'Y', 'Position', 'Y position on sheet', 8+16).Y = 0
@@ -66,8 +80,15 @@ class SchemeObjectFeature:
         obj.Proxy = self
         #self.initItem(obj, sheet)
 
-    def execute(self, obj):
-        FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} execute \n")
+    def onDocumentRestored(self, obj):
+        SMobj = SoftMigration.Start(obj)
+        self.__init__(SMobj)
+        self.smobj = SMobj
+        #SMobj.cleanUp()
+        obj.ViewObject.Proxy.onDocumentRestored(obj.ViewObject)
+
+    #def execute(self, obj):
+    #    FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} execute \n")
 
     def onChanged(self, obj, prop):
         """ Do something when a property has changed """
@@ -114,11 +135,8 @@ class SchemeObjectFeature:
             self.item.setRotation(val)
             self.item.scene().update()
         elif prop == "Width" or prop == "Height":
-            if "ReadOnly" not in obj.getPropertyStatus(prop):
-                obj.Proxy.item.scene().update()
-                val = obj.getPropertyByName(prop)
-                if val != 0:
-                    obj.Proxy.item.drawMode = False
+            #if "ReadOnly" not in obj.getPropertyStatus(prop):
+            obj.Proxy.item.scene().update()
         elif prop == "Tooltip":
             self.item.setToolTip(val)
         elif prop == "Visibility":
@@ -152,22 +170,33 @@ class SchemeObjectFeature:
     def setSelected(self, state):
         if hasattr(self, 'item'):
             # At first switch tab, at second add selection
-            activateItemTab(self.item)
+            if state is True:
+                activateItemTab(self.item)
             self.item.setSelected(state)
 
     # Mandatory! Return None so serializer doesn't try to save self.item and other self. objects
     def __getstate__(self):
         return None
 
+    # Mandatory method!
+    def __setstate__(self, data):
+        return None
+
 class SchemeObjectViewProvider:
 
     def __init__(self, vobj):
-        """ Set this object to the proxy object of the actual view provider """
+        #FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} init object \n")
         vobj.setPropertyStatus("DisplayMode", "Hidden")
         vobj.setPropertyStatus("OnTopWhenSelected", "Hidden")
         vobj.setPropertyStatus("SelectionStyle", "Hidden")
         self.initViewPropertyies(vobj)
         vobj.Proxy = self
+
+    # This method called from obj.onDocumentRestored
+    def onDocumentRestored(self, vobj):
+        SMobj = SoftMigration.Start(vobj)
+        self.__init__(SMobj)
+        #SMobj.cleanUp()
 
     def onChanged(self, vobj, prop):
         """ Print the name of the property that has changed """
@@ -199,4 +228,8 @@ class SchemeObjectViewProvider:
 
     # Mandatory! Return None so serializer doesn't try to save self.item and other self. objects
     def __getstate__(self):
+        return None
+
+    # Mandatory method!
+    def __setstate__(self, data):
         return None

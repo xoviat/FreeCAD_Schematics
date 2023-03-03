@@ -21,13 +21,14 @@ class SchematicsWorkbench(FreeCAD.Gui.Workbench):
         """ This function is executed when FreeCAD starts """
 
         import PySide2
-        import SCCommands, SCSymbolCommands
-    
+        from Schematics.Toolbars import SymbolCommands
+        from Schematics.Toolbars import Commands
+
         print(f"QtCore Version: {PySide2.QtCore.qVersion()}")
 
-        cmdList = SCCommands.CommandList
+        cmdList = Commands.CommandList
         self.appendToolbar("Scheme sheet managing", cmdList)
-        symbolCmdList = SCSymbolCommands.SymbolCommandList
+        symbolCmdList = SymbolCommands.SymbolCommandList
         self.appendToolbar("Scheme sheet items", symbolCmdList)
 
     def Activated(self):
@@ -47,9 +48,14 @@ class SchematicsWorkbench(FreeCAD.Gui.Workbench):
 
 FreeCAD.Gui.addWorkbench(SchematicsWorkbench())
 
+# Embedding the Schematics API in FreeCAD
+from Schematics.API import API
+global Schematics
+Schematics = API()
+
 # Activate all observers at FreeCAD started
-import Features.Observers
-Features.Observers.setup()
+import Schematics.Features.Observers
+Schematics.Features.Observers.setup()
 
 # Move to features folder separate class
 class GuiDocumentObserver:

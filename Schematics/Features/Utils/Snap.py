@@ -18,7 +18,7 @@ def snap(value, sheet):
     """ value type is QtCore.QPointF. step is integer"""
     if sheet.SnapEnabled is not True or WithoutSnap:
         return value
-    step = sheet.GridSpacing.Value
+    step = sheet.ViewObject.GridSpacing.Value
     if sheet.SnapToMajorGrid:
-        step *= sheet.MajorGridLineEvery
+        step *= sheet.ViewObject.MajorGridLineEvery
     return QtCore.QPointF(snapAxis(step, value.x()), snapAxis(step, value.y()))

@@ -27,6 +27,10 @@ def nextEnum(enum, value):
     index = (index + 1) % len(vlist)
     return vlist[index]
 
+Standards = [
+    'GOST'
+]
+
 QtLineStyles = {
     "Not displayed": QtCore.Qt.NoPen,
     "Solid line": QtCore.Qt.SolidLine,

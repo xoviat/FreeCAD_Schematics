@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 ###############################################################################
 #
-#  SCCommands.py - Main toolbar commands
+#  Commands.py - Main toolbar commands
 #
 #  Copyright Evgeniy 2022 <https://github.com/FreeCAD-Tools>
 #
 ###############################################################################
 
-from Features.Utils.MDI import *
-from Features.SchemeFeature import CreateScheme
+from Schematics.Features.Utils.MDI import *
+from Schematics.Features.SchemeFeature import CreateScheme
 from SCUtils import *
-from Features.Utils.QtEnums import *
-from Features.Utils.SVG import *
+from Schematics.Features.Utils.QtEnums import *
+from Schematics.Features.Utils.SVG import *
+from Schematics.Utils import GetToolBarButtonAction
 
 CommandList = []   
 
@@ -57,8 +58,8 @@ class SCGrid:
     def Activated(self):
         scheme = tryToGetSchemeFromActiveWindow()
         if scheme is not None:
-            scheme.GridVisible = not scheme.GridVisible
-        self.action.setChecked(scheme.GridVisible) # ! Duplicated to avoid blinking when pressed
+            scheme.ViewObject.GridVisible = not scheme.ViewObject.GridVisible
+        self.action.setChecked(scheme.ViewObject.GridVisible) # ! Duplicated to avoid blinking when pressed
         return
 
     def IsActive(self):
@@ -67,7 +68,7 @@ class SCGrid:
             return False
         if self.action is None:
             self.action = GetToolBarButtonAction("SCGrid")
-        self.action.setChecked(scheme.GridVisible)
+        self.action.setChecked(scheme.ViewObject.GridVisible)
         return True
 
 addCommand('SCGrid', SCGrid())

@@ -8,13 +8,15 @@
 ###############################################################################
 
 from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
-from Features.SchemeViewAndScene import SchemeGraphicsView, SchemeGraphicsScene
-from Features.Utils.SVGSymbolsCache import transformUnits
+from Schematics.Features.SchemeViewAndScene import SchemeGraphicsView, SchemeGraphicsScene
+from Schematics.Features.Utils.SVGSymbolsCache import transformUnits
 from SCUtils import *
-from Features.SchemeProviderSetup import SchemeViewProviderSetup
-from Features.Utils.SVG import *
-from Features.Utils.MDI import *
-from Features.Utils.QtEnums import *
+from Schematics.Features.Utils.SVG import *
+from Schematics.Features.Utils.MDI import *
+from Schematics.Features.GridMixin import *
+import Schematics.Features.Utils.SoftMigration as SoftMigration
+from Schematics.Utils import FreeCADVersion
+
 
 def CreateScheme():
     # ! Open transaction for sheet is not supported.
@@ -22,7 +24,8 @@ def CreateScheme():
     #FreeCAD.ActiveDocument.openTransaction(f"Sheet added")
     obj = FreeCAD.ActiveDocument.addObject('App::FeaturePython', 'Schematic')
     SchemeFeature(obj)
-    BluePrintViewProvider(obj.ViewObject)
+    SchemeViewProvider(obj.ViewObject)
+    obj.Proxy.initWindow(obj)
     #FreeCAD.ActiveDocument.commitTransaction()
     return obj
 
@@ -50,7 +53,6 @@ class SchemeFeature:
         # https://github.com/FreeCAD/FreeCAD/blob/302d3f5b95030b81d1a4b45f40fc8d18f1ecbe49/src/App/PropertyFile.cpp#L613-L629
         if FreeCADVersion() >= 20.3:
             obj.Template = {"filter" : "Svg files (*.svg *.SVG);;All files (*.*)"}
-        obj.Proxy = self
         # Using the PropertyLinkListHidden property type instead of just PropertyLinkList 
         # allows to avoid the intrusive dialog that popup when user try to remove any element from the sheet.
         obj.addProperty('App::PropertyEnumeration', 'Appearance', 'Appearance', 'Sheet appearance style', 8+16).Appearance = list(SheetAppearanceStyles)
@@ -60,25 +62,17 @@ class SchemeFeature:
         # -----------------------------------------------------------------------------------------
         obj.addProperty('App::PropertyLinkListHidden', 'Elements', 'Base', 'Elements list of sheet', 8+16).Elements = []
         obj.setPropertyStatus("Elements", "Hidden")
-        obj.addProperty('App::PropertyBool', 'GridVisible', 'Grid',
-           'If this parameter is true, the grid is displayed on the sheet, otherwise it is not', 8+16).GridVisible = False
-        obj.addProperty('App::PropertyLength', 'GridSpacing', 'Grid', 'Distance between grid lines', 8+16).GridSpacing = "5 mm"
-        obj.addProperty('App::PropertyIntegerConstraint', 'MajorGridLineEvery', 'Grid', 'Major grid line every', 8+16).MajorGridLineEvery = (2, 1, 2147483647, 1)
-        obj.addProperty('App::PropertyColor', 'MinorGridLineColor', 'Grid', 'Color of minor grid lines', 8+16).MinorGridLineColor = (0.5, 0.5, 0.5, 1.0)
-        obj.addProperty('App::PropertyLength', 'MinorGridLineWidth', 'Grid', 'Width of minor grid lines', 8+16).MinorGridLineWidth = "0.05 mm"
-        obj.addProperty('App::PropertyEnumeration', 'MinorGridLineStyle', 'Grid', 'Draw style of minor grid lines', 8+16).MinorGridLineStyle = list(QtLineStyles)
-        obj.MinorGridLineStyle = list(QtLineStyles)[3]   # Default dot style
-        obj.addProperty('App::PropertyColor', 'MajorGridLineColor', 'Grid', 'Color of major grid lines', 8+16).MajorGridLineColor = (0.5, 0.5, 0.5, 1.0)
-        obj.addProperty('App::PropertyLength', 'MajorGridLineWidth', 'Grid', 'Width of major grid lines', 8+16).MajorGridLineWidth = "0.15 mm"
-        obj.addProperty('App::PropertyEnumeration', 'MajorGridLineStyle', 'Grid', 'Draw style of major grid lines', 8+16).MajorGridLineStyle = list(QtLineStyles)
-        obj.MajorGridLineStyle = list(QtLineStyles)[3]   # Default dot style
         obj.addProperty('App::PropertyBool', 'SnapEnabled', 'Grid', 'Snap enabled or not', 8+16).SnapEnabled = True
         obj.addProperty('App::PropertyBool', 'SnapToMajorGrid', 'Grid', 'Snap step major grid otherwise to minor grid', 8+16).SnapToMajorGrid = False
-        self.obj = obj
-        self.initWindow(obj)
+        obj.Proxy = self
 
     def onDocumentRestored(self, obj):
         FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} onDocumentRestored " + str(obj) + " \n")
+        SMobj = SoftMigration.Start(obj)
+        self.__init__(SMobj)
+        self.smobj = SMobj
+        #SMobj.cleanUp()
+        obj.ViewObject.Proxy.onDocumentRestored(obj.ViewObject)
         self.initWindow(obj)
 
     # This function is called in two cases:
@@ -89,10 +83,10 @@ class SchemeFeature:
         subWindowsList = FreeCAD.Gui.getMainWindow().findChild(QtWidgets.QMdiArea).subWindowList()
         for sw in subWindowsList:
             if sw.__class__.__name__ == 'SchemeMDIView':
-                if sw.obj == self.obj:
+                if sw.obj == obj:
                     print('Tab is exist')
                     return
-        self.scene = SchemeGraphicsScene(self.obj)
+        self.scene = SchemeGraphicsScene(obj)
         view = SchemeGraphicsView()
         #print(str(view.cacheMode()), str(view.viewportUpdateMode()))
         view.setBackgroundBrush(QtGui.Qt.gray) # Add background color property
@@ -141,14 +135,8 @@ class SchemeFeature:
                 self.onDelete()
         elif prop == "Template":
             self.updateTemplate(obj)        # Set new template or update existed
-        elif prop == "MinorGridLineColor":
-            if val[3] == 0.0:
-                self.obj.MinorGridLineColor = val[:-1] + (1.0,)
-        elif prop == "MajorGridLineColor":
-            if val[3] == 0.0:
-                self.obj.MajorGridLineColor = val[:-1] + (1.0,)
         elif prop == "LinesColor" or prop == "PaperColor":
-            self.obj.Appearance = list(SheetAppearanceStyles)[-1]  # Activate last style
+            obj.Appearance = list(SheetAppearanceStyles)[-1]  # Activate last style
             return
         elif prop == "Appearance":
             self.appearance = SheetAppearanceStyles[val](obj)
@@ -241,33 +229,52 @@ class SchemeFeature:
     def __getstate__(self):
         return None
 
-class BluePrintViewProvider(SchemeViewProviderSetup):
+    # Mandatory method!
+    def __setstate__(self, data):
+        return None
 
-    def __init__(self, obj):
+class SchemeViewProvider(GridViewProperties):
+
+    def __init__(self, vobj):
         """ Set this object to the proxy object of the actual view provider """
         # FreeCAD.Console.PrintMessage(f"{__class__.__name__} init")
-        obj.addProperty('App::PropertyEnumeration', 'Orientation', 'Base', "Sheet orientation horizontal or vertical").Orientation = \
+        # Move that to data
+        vobj.addProperty('App::PropertyEnumeration', 'Orientation', 'Base', "Sheet orientation horizontal or vertical").Orientation = \
               ['Landscape', 'Portrait']
-        obj.addProperty('App::PropertyLength', 'Width', 'Size', 'Sheet width getted from svg template (read only)').Width = '0 mm'
-        obj.addProperty('App::PropertyLength', 'Height', 'Size', 'Sheet height getted from svg template (read only)').Height = '0 mm'
-        obj.setPropertyStatus("Width", "ReadOnly")
-        obj.setPropertyStatus("Height", "ReadOnly")
-        obj.setPropertyStatus("Orientation", "ReadOnly")
+        vobj.addProperty('App::PropertyLength', 'Width', 'Size', 'Sheet width getted from svg template (read only)').Width = '0 mm'
+        vobj.addProperty('App::PropertyLength', 'Height', 'Size', 'Sheet height getted from svg template (read only)').Height = '0 mm'
+        vobj.setPropertyStatus("Width", "ReadOnly")
+        vobj.setPropertyStatus("Height", "ReadOnly")
+        vobj.setPropertyStatus("Orientation", "ReadOnly")
         # !!! Save view port rect
-        self.elements = []
-        obj.Proxy = self
+        super().__init__(vobj)
+        vobj.Proxy = self
 
-    def onDelete(self, obj, subelements):
-        FreeCAD.Console.PrintMessage(f"{__class__.__name__} onDelete {str(obj)} subelements: {str(subelements)}\n")
+    # This method called from obj.onDocumentRestored
+    def onDocumentRestored(self, vobj):
+        SMobj = SoftMigration.Start(vobj)
+        self.__init__(SMobj)
+        #SMobj.cleanUp()
+
+    def onChanged(self, vobj, prop):
+        val = vobj.getPropertyByName(prop)
+        FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} property changed: " + str(prop) + "=" + str(val) + "\n")
+        if not hasattr(vobj.Object.Proxy, "scene"):
+            return
+        super().onChanged(vobj, prop)
+        return
+
+    def onDelete(self, vobj, subelements):
+        FreeCAD.Console.PrintMessage(f"{__class__.__name__} onDelete {str(vobj)} subelements: {str(subelements)}\n")
         #onDelete find tab and destroy it
 
         # Remove sub-objects
-        for x in obj.Object.Elements:
+        for x in vobj.Object.Elements:
             FreeCAD.ActiveDocument.removeObject(x.Name)
         return True
 
-    def updateData(self, obj, prop):
-        self.elements = obj.Elements
+    def updateData(self, vobj, prop):
+        self.elements = vobj.Elements
         return
 
     def claimChildren(self):
@@ -279,3 +286,37 @@ class BluePrintViewProvider(SchemeViewProviderSetup):
     # Return None so serializer doesn't try to save self. objects
     def __getstate__(self):
         return None
+
+    # Mandatory method!
+    def __setstate__(self, data):
+        return None
+
+    # View provider for not 3D view FeaturePython classes which involve:
+    # QGraphicsView, QGraphicsScene, QGraphicsItem Qt classes like Blueprint or Blueprint elements...
+    # This code is repeated in many classes and placed in a separate file to not clogging up the code.
+
+    def attach(self, obj):
+        """ Setup the scene sub-graph of the view provider, this method is mandatory """
+        from pivy import coin  # Without this, the icon will be displayed in grayscale
+        # App.Console.PrintMessage("Not3DViewProvider attach \n")
+        drawingDisplayMode = coin.SoGroup()
+        obj.addDisplayMode(drawingDisplayMode, "Drawing")
+
+        # Moved from __init__ to get rid of super().__init__(vobj)
+        # These settings are used for the 3D view, but this object is part of the 2D sheet.
+        # Therefore, these properties are not needed and should be hidden.
+        # BluePrint sheet can ONLY be selected via the treeview
+        obj.setPropertyStatus("DisplayMode", "Hidden")
+        obj.setPropertyStatus("OnTopWhenSelected", "Hidden")
+        obj.setPropertyStatus("SelectionStyle", "Hidden")
+        return
+
+    def getDisplayModes(self, obj):
+        """ Return a list of display modes. """
+        # App.Console.PrintMessage("Not3DViewProvider getDisplayModes \n")
+        return ["Drawing"]
+
+    def getDefaultDisplayMode(self):
+        """ Return the name of the default display mode. It must be defined in getDisplayModes. """
+        # App.Console.PrintMessage("Not3DViewProvider getDefaultDisplayMode \n")
+        return "Drawing"
