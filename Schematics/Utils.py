@@ -41,20 +41,15 @@ def FreeCADVersion():
     minor = FreeCAD.Version()[1]
     revision = FreeCAD.Version()[2]
     if revision.isnumeric():
-        version = minor + "." + revision
+        gitbuild = FreeCAD.Version()[3]
     else:
-        version = minor
-    return float(version)
+        revision = 0   # or None
+        gitbuild = FreeCAD.Version()[2]
+    gitbuild = int(''.join(filter(str.isdigit, gitbuild)))   # int(gitbuild.replace(" (Git)", ""))
+    return (major, minor, revision), gitbuild
 
-def FreeCADVersionIsHigherThan(major, minor, revision):
-    FCmajor = FreeCAD.Version()[0]
-    FCminor = FreeCAD.Version()[1]
-    FCrevision = FreeCAD.Version()[2]
-    if not FCrevision.isnumeric():
-        FCrevision = 0
-    if FCmajor > major and FCminor > minor and FCrevision > revision:
-        return True
-    return False
+def FreeCADBuildVersion():
+    return FreeCADVersion()[0]
 
-# def FreeCADGitVersionIsHigherOrEqualThan(number):
-#    return True
+def FreeCADGitVersion():
+    return FreeCADVersion()[1]

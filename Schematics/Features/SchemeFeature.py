@@ -15,7 +15,7 @@ from Schematics.Features.Utils.SVG import *
 from Schematics.Features.Utils.MDI import *
 from Schematics.Features.GridMixin import *
 import Schematics.Features.Utils.SoftMigration as SoftMigration
-from Schematics.Utils import FreeCADVersion
+from Schematics.Utils import *
 
 
 def CreateScheme():
@@ -51,8 +51,8 @@ class SchemeFeature:
         self.Type = 'SchemeFeature'
         obj.addProperty('App::PropertyFileIncluded', 'Template', 'Base', 'A slot for SVG Template file')
         # https://github.com/FreeCAD/FreeCAD/blob/302d3f5b95030b81d1a4b45f40fc8d18f1ecbe49/src/App/PropertyFile.cpp#L613-L629
-        if FreeCADVersion() >= 20.3:
-            obj.Template = {"filter" : "Svg files (*.svg *.SVG);;All files (*.*)"}
+        if FreeCADGitVersion() >= 31900:
+            obj.Template = {"filter": "Svg files (*.svg *.SVG);;All files (*.*)"}
         # Using the PropertyLinkListHidden property type instead of just PropertyLinkList 
         # allows to avoid the intrusive dialog that popup when user try to remove any element from the sheet.
         obj.addProperty('App::PropertyEnumeration', 'Appearance', 'Appearance', 'Sheet appearance style', 8+16).Appearance = list(SheetAppearanceStyles)
