@@ -8,9 +8,9 @@
 ###############################################################################
 
 import FreeCAD
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 
-ActionsList = []
+ActionsList: list["MenuActionContainer"] = []
 
 def registerAction(cmdName, functionName):
     """ Add new action to list. Example: registerAction("Std_Copy", myCopy) """
@@ -43,7 +43,8 @@ class MenuActionContainer:
     def tryToFindAction(self):
         """ This function iterate all menu items and try to find action which invoke cmdName command """
         mw = FreeCAD.Gui.getMainWindow()
-        actions = mw.menuBar().findChildren(QtWidgets.QAction)
+        # PySide6: QAction moved from QtWidgets to QtGui
+        actions = mw.menuBar().findChildren(QtGui.QAction)
         for a in actions:
            # print(a.data())
            if a.menu() is not None:
@@ -53,7 +54,7 @@ class MenuActionContainer:
                     self.menu = a.menu()
                     self.origAction = origAction
                     if self.newAction is None:
-                        self.newAction = QtWidgets.QAction(
+                        self.newAction = QtGui.QAction(
                             self.origAction.icon(), self.origAction.text(), None, triggered=self.newMethod)
                         self.newAction.setShortcut(self.origAction.shortcut())
                     self.active = False

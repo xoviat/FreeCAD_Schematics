@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
 from Schematics.Features.Utils.Snap import snap
@@ -16,7 +16,11 @@ from Schematics.Features.Items.MarkersMixin import *
 
 class Polyline:
     def __new__(cls, x=None, y=None, sheet=None):
-        return makeObject(PolylineFeature, PolylineViewProvider, sheet, cls)
+        obj = makeObject(PolylineFeature, PolylineViewProvider, sheet, cls)
+        # Honor documented params; None keeps the interactive path unchanged
+        if x is not None: obj.X = x
+        if y is not None: obj.Y = y
+        return obj
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml

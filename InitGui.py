@@ -8,23 +8,27 @@
 ###############################################################################
 
 import FreeCAD
+from SCUtils import getIconPath
 
 class SchematicsWorkbench(FreeCAD.Gui.Workbench):
 
-    from SCUtils import getIconPath
-
+    # NOTE: FreeCAD exec()s InitGui.py with separate globals()/locals() dicts,
+    # so names bound at module level (like getIconPath imported above) are NOT
+    # visible inside class/function bodies here. The icon is therefore
+    # assigned after the class body — see below.
     MenuText = "Schematics"
     ToolTip = "Workbench for Electric circuit creation"
-    Icon = getIconPath("Schematics.svg")
 
     def Initialize(self):
         """ This function is executed when FreeCAD starts """
 
-        import PySide2
+        # PySide6 does not expose submodules lazily: `import PySide6` then
+        # `PySide6.QtCore...` raises AttributeError. Import QtCore explicitly.
+        from PySide6 import QtCore
         from Schematics.Toolbars import SymbolCommands
         from Schematics.Toolbars import Commands
 
-        print(f"QtCore Version: {PySide2.QtCore.qVersion()}")
+        print(f"QtCore Version: {QtCore.qVersion()}")
 
         cmdList = Commands.CommandList
         self.appendToolbar("Scheme sheet managing", cmdList)
@@ -46,16 +50,23 @@ class SchematicsWorkbench(FreeCAD.Gui.Workbench):
         """ this function is mandatory if this is a full python workbench """
         return "Gui::PythonWorkbench"
 
+# See the note in the class body: assigned at module level on purpose.
+SchematicsWorkbench.Icon = getIconPath("Schematics.svg")
+
 FreeCAD.Gui.addWorkbench(SchematicsWorkbench())
 
 # Embedding the Schematics API in FreeCAD
 from Schematics.API import API
+# Activate all observers at FreeCAD started.
+# Use an aliased import: a plain `import Schematics.Features.Observers` would
+# rebind the name "Schematics" to the package and clobber the API instance below.
+import Schematics.Features.Observers as SCObserversModule
+SCObserversModule.setup()
+# The `global` is required: without it `Schematics = API()` binds only in the
+# throwaway exec() locals dict and would never reach FreeCAD's Python console
+# (__main__), where the README examples (Schematics.Rectangle() ...) run.
 global Schematics
 Schematics = API()
-
-# Activate all observers at FreeCAD started
-import Schematics.Features.Observers
-Schematics.Features.Observers.setup()
 
 # Move to features folder separate class
 class GuiDocumentObserver:

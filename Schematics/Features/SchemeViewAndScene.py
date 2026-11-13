@@ -8,7 +8,7 @@
 ###############################################################################
 
 import math
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.SchemeContextMenu import ContextMenu
 from Schematics.Features.Items.SchemeObject import *
@@ -19,10 +19,10 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
     def __init__(self):
         super().__init__()
         #self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
-        self.setViewportUpdateMode(self.ViewportUpdateMode.FullViewportUpdate)
-        self.setDragMode(self.RubberBandDrag) #ScrollHandDrag)
+        self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag) #ScrollHandDrag)
         self.setMouseTracking(True)
-        self.setCacheMode(self.CacheBackground)
+        self.setCacheMode(QtWidgets.QGraphicsView.CacheMode.CacheBackground)
         self.dragMode = False
         self.instance = None
         self.currentObj = None
@@ -48,7 +48,8 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
         if event.button() == QtCore.Qt.MiddleButton:
             # rubber mode of
             self.sceneCenter = self.mapToScene(self.viewport().rect().center())
-            self.startPos = event.localPos()
+            # Qt6: QMouseEvent.localPos() is deprecated in favor of position()
+            self.startPos = event.position()
             self.dragMode = True
             self.viewport().setCursor(QtCore.Qt.ClosedHandCursor)
         if event.button() == QtCore.Qt.RightButton:
@@ -63,7 +64,8 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
             else:
                 contextMenu = ContextMenu(self)
                 contextMenu.addStandartActions()
-                contextMenu.invokeAt(event.globalPos())
+                # Qt6: globalPos() is deprecated in favor of globalPosition()
+                contextMenu.invokeAt(event.globalPosition().toPoint())
 
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.MiddleButton:
@@ -73,21 +75,21 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        #print(f"mmove event {event.localPos()}, {self.mapToScene(event.pos())}")
+        #print(f"mmove event {event.position()}, {self.mapToScene(event.pos())}")
         if self.underCursorItem is not None:
             self.underCursorItem.mousePos(self.mapToScene(event.pos()))
-        overItem = self.itemAt(event.localPos().toPoint())
+        overItem = self.itemAt(event.position().toPoint())
         #if hasattr(overItem, "drawMode") and overItem.drawMode:
         if self.instance is not None:
             self.viewport().setCursor(QtCore.Qt.CrossCursor)
         else:
-            if overItem is not None and (overItem.flags() & overItem.ItemIsMovable):
+            if overItem is not None and (overItem.flags() & QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable):
                 self.viewport().setCursor(overItem.getCursor())
             else:
                 self.viewport().setCursor(QtCore.Qt.ArrowCursor)
 
         if self.dragMode:
-            self.centerOn(self.sceneCenter + (self.startPos - event.localPos()) / self.getScale())
+            self.centerOn(self.sceneCenter + (self.startPos - event.position()) / self.getScale())
         super().mouseMoveEvent(event)
 
     def zoom(self, factor):

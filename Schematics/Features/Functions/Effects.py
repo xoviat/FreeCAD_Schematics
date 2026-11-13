@@ -8,7 +8,7 @@
 ###############################################################################
 
 import FreeCAD
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 
 
 def addShadow(obj, radius=10, xOffset=5, yOffset=5):

@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui
+from PySide6 import QtGui
 
 
 def toFront(obj):

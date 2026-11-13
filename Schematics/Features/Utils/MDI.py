@@ -8,7 +8,7 @@
 ###############################################################################
 
 import FreeCAD
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
+from PySide6 import QtGui, QtCore, QtSvg, QtWidgets
 
 def getMdiArea():
     return FreeCAD.Gui.getMainWindow().findChild(QtWidgets.QMdiArea)

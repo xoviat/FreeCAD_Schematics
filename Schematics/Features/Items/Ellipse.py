@@ -7,12 +7,18 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore
+from PySide6 import QtGui, QtCore
 from Schematics.Features.Items.Rectangle import *
 
 class Ellipse:
     def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
-        return makeObject(EllipseFeature, EllipseViewProvider, sheet, cls)
+        obj = makeObject(EllipseFeature, EllipseViewProvider, sheet, cls)
+        # Honor documented params; None keeps the interactive path unchanged
+        if x is not None: obj.X = x
+        if y is not None: obj.Y = y
+        if width is not None: obj.Width = width
+        if height is not None: obj.Height = height
+        return obj
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml

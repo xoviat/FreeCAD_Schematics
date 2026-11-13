@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
+from PySide6 import QtGui, QtCore, QtSvg, QtWidgets
 import FreeCAD
 
 # ------------------------- StatusBar -------------------------
@@ -18,8 +18,9 @@ def StatusBarMessage(text, time_ms=0):
 # ------------------------- Dialogs -------------------------
 
 def MessageBox(typeString, title, text):
-    dlg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.values[typeString], title, text)
-    dlg.exec_()
+    # PySide6: enums no longer expose .values; look the icon up by name instead
+    dlg = QtWidgets.QMessageBox(getattr(QtWidgets.QMessageBox.Icon, typeString), title, text)
+    dlg.exec()
 
 # ---------------------- Toolbars actions ----------------------
 

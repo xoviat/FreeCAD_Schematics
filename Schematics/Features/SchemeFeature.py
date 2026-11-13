@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
+from PySide6 import QtGui, QtCore, QtSvg, QtSvgWidgets, QtWidgets
 from Schematics.Features.SchemeViewAndScene import SchemeGraphicsView, SchemeGraphicsScene
 from Schematics.Features.Utils.SVGSymbolsCache import transformUnits
 from SCUtils import *
@@ -89,7 +89,7 @@ class SchemeFeature:
         self.scene = SchemeGraphicsScene(obj)
         view = SchemeGraphicsView()
         #print(str(view.cacheMode()), str(view.viewportUpdateMode()))
-        view.setBackgroundBrush(QtGui.Qt.gray) # Add background color property
+        view.setBackgroundBrush(QtCore.Qt.gray) # Add background color property
         view.setScene(self.scene)
         self.view = view
 
@@ -165,7 +165,7 @@ class SchemeFeature:
             if hasattr(self, "svg_template"):
                 self.scene.removeItem(self.svg_template)
                 del self.svg_template
-            svg = QtSvg.QGraphicsSvgItem()
+            svg = QtSvgWidgets.QGraphicsSvgItem()
             renderer = QtSvg.QSvgRenderer()
             renderer.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
             with open(obj.Template, "r", encoding='utf-8') as f:
@@ -177,7 +177,8 @@ class SchemeFeature:
             # groups of elements, and it is also better to replace the text with contours.
             #svg.setCacheMode(svg.NoCache)
             svg.setMaximumCacheSize(QtCore.QSize(15000, 15000))
-            svg.setFlags(svg.ItemClipsToShape)
+            # PySide6: enum values must be read from the class, not the instance
+            svg.setFlags(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemClipsToShape)
             svg.setSharedRenderer(renderer)
             svg.setElementId("")
             self.scene.svg_template = self.scene.addItem(svg)

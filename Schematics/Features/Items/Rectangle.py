@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
 from Schematics.Features.Utils.Snap import snap
@@ -15,7 +15,14 @@ from Schematics.Features.Items.StrokeMixin import *
 
 class Rectangle:
     def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
-        return makeObject(RectangleFeature, RectangleViewProvider, sheet, cls)
+        obj = makeObject(RectangleFeature, RectangleViewProvider, sheet, cls)
+        # Honor the documented x/y/width/height parameters (they were accepted
+        # but silently dropped). None keeps the interactive draw path unchanged.
+        if x is not None: obj.X = x
+        if y is not None: obj.Y = y
+        if width is not None: obj.Width = width
+        if height is not None: obj.Height = height
+        return obj
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml

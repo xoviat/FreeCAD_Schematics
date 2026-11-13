@@ -14,7 +14,7 @@ from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.Utils.SVG import *
 from Schematics.Utils import GetToolBarButtonAction
 
-CommandList = []   
+CommandList: list[str] = []
 
 def addCommand(name, function = None):
     CommandList.append(name)

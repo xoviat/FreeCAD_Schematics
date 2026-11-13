@@ -7,14 +7,18 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtWidgets
+from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
 from Schematics.Features.Utils.Snap import snap
 
 class Text:
     def __new__(cls, x=None, y=None, sheet=None):
-        return makeObject(TextFeature, TextViewProvider, sheet, cls)
+        obj = makeObject(TextFeature, TextViewProvider, sheet, cls)
+        # Honor documented params; None keeps the interactive path unchanged
+        if x is not None: obj.X = x
+        if y is not None: obj.Y = y
+        return obj
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml
@@ -52,21 +56,23 @@ class TextViewProvider(SchemeObjectViewProvider):
 
 class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
 
-    font = QtGui.QFont()
-    font.setFamilies(["GOSTRUS"]) #"OSIFONT",
-    #font.setBold(True)
-    font.setItalic(True)
-    font.setPointSizeF(8.0)
-    font.setHintingPreference(font.PreferNoHinting) # Try other hitting on distance
-    font.setLetterSpacing(font.AbsoluteSpacing, 0.1)
-    #f = obj.Proxy.item.font; f.setPixelSize(6) ; obj.Proxy.item.setFont(f)
+    # Named default_font: a class attribute named "font" would shadow
+    # QGraphicsTextItem.font() and confuse type checkers.
+    default_font = QtGui.QFont()
+    default_font.setFamilies(["GOSTRUS"]) #"OSIFONT",
+    #default_font.setBold(True)
+    default_font.setItalic(True)
+    default_font.setPointSizeF(8.0)
+    default_font.setHintingPreference(QtGui.QFont.HintingPreference.PreferNoHinting) # Try other hitting on distance
+    default_font.setLetterSpacing(QtGui.QFont.SpacingType.AbsoluteSpacing, 0.1)
+    #f = obj.Proxy.item.default_font; f.setPixelSize(6) ; obj.Proxy.item.setFont(f)
 
     def __init__(self, obj, sheet):
         super().__init__(obj, sheet)
         self.setTextInteractionFlags(QtCore.Qt.TextEditorInteraction)
         self.document().contentsChanged.connect(self.contentsChanged)
         self.doNotUpdateText = False
-        self.setFont(self.font)
+        self.setFont(self.default_font)
 
     def boundingRect(self):
         # In draw mode extend rect to maximal size
@@ -89,17 +95,17 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
 
     def setmode(self, mode):
         if mode:
-            self.setFlags(self.ItemIsSelectable)
+            self.setFlags(QtWidgets.QGraphicsItem.ItemIsSelectable)
         else:
-            self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges
-                          | self.ItemIsFocusable)
+            self.setFlags(QtWidgets.QGraphicsItem.ItemIsMovable | QtWidgets.QGraphicsItem.ItemIsSelectable | QtWidgets.QGraphicsItem.ItemSendsGeometryChanges
+                          | QtWidgets.QGraphicsItem.ItemIsFocusable)
             self.updateTransform()
         self.__drawMode = mode
 
     drawMode = property(getmode, setmode)
 
     def paint(self, g, option, widget):
-        g.setRenderHints(g.RenderHint.TextAntialiasing | g.RenderHint.Antialiasing)   # ...SmoothPixmapTransform
+        g.setRenderHints(QtGui.QPainter.RenderHint.TextAntialiasing | QtGui.QPainter.RenderHint.Antialiasing)   # ...SmoothPixmapTransform
         super().paint(g, option, widget)
 
     def mousePressEvent(self, event):

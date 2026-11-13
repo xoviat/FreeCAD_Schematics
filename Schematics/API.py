@@ -57,7 +57,9 @@ class API:
         rect.Height = 30
         """
         from Schematics.Features.Items.Rectangle import Rectangle
-        return Rectangle(x, y, sheet)
+        # keyword arg: Rectangle.__new__ has width/height before sheet,
+        # so a positional third argument would bind sheet -> width
+        return Rectangle(x, y, sheet=sheet)
 
     def Line(self, x=0, y=0, sheet=None):
         """
@@ -79,7 +81,8 @@ class API:
         line.Height = 30
         """
         from Schematics.Features.Items.Line import Line
-        return Line(x, y, sheet)
+        # keyword arg: see note in Rectangle()
+        return Line(x, y, sheet=sheet)
 
     def help(self):
         with open(getRootPath('README.md'), 'r') as file:

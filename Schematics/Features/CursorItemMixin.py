@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg, QtWidgets
+from PySide6 import QtGui, QtCore, QtSvg, QtSvgWidgets, QtWidgets
 from Schematics.Features.Utils.Snap import snap
 from Schematics.Features.Utils.SVGSymbolsCache import loadSVGSymbol
 
@@ -32,14 +32,15 @@ class CursorItemMixin:
 
     def enterEvent(self, event):
         if self.underCursorItem is not None:
-            self.underCursorItem.mousePos(self.mapToScene(event.pos()))
+            # Qt6: QEnterEvent carries a QPointF position
+            self.underCursorItem.mousePos(self.mapToScene(event.position().toPoint()))
             self.underCursorItem.show()
 
     def leaveEvent(self, event):
         if self.underCursorItem is not None:
             self.underCursorItem.hide()
 
-class CursorSymbolItem(QtSvg.QGraphicsSvgItem):
+class CursorSymbolItem(QtSvgWidgets.QGraphicsSvgItem):
 
     def __init__(self, typ, grp, std, sheet):
         super().__init__()

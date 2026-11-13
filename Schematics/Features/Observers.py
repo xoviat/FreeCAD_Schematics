@@ -35,7 +35,9 @@ def subWindowChanged():
         #print('schemeSelected + clearSelection')
     else:
         actionsSetActivate(False)
-    FreeCAD.ActiveDocument.recompute() # ! Update toolbars buttons state
+    # No document may exist yet (the signal also fires during startup)
+    if FreeCAD.ActiveDocument is not None:
+        FreeCAD.ActiveDocument.recompute() # ! Update toolbars buttons state
 
 def Plug():
     MessageBox("Information", "Schematics", "This function unsupported for schematics")

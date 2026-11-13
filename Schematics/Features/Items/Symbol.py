@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore, QtSvg
+from PySide6 import QtGui, QtCore, QtSvg, QtSvgWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
 from Schematics.Features.Utils.Snap import snap
@@ -16,7 +16,11 @@ from Schematics.Features.Utils.QtEnums import *
 
 class Symbol:
     def __new__(cls, x=None, y=None, sheet=None):
-        return makeObject(SymbolFeature, SymbolViewProvider, sheet, cls, typ=cls.typ, grp=cls.grp, std=cls.std)
+        obj = makeObject(SymbolFeature, SymbolViewProvider, sheet, cls, typ=cls.typ, grp=cls.grp, std=cls.std)
+        # Honor documented params; None keeps the interactive path unchanged
+        if x is not None: obj.X = x
+        if y is not None: obj.Y = y
+        return obj
 
 # ! Do not change name and location of this class
 # Module path and name of this class will be stored to *.FCStd file in Document.xml
@@ -51,7 +55,7 @@ class SymbolViewProvider(SchemeObjectViewProvider):
     def onViewPropertyChanged(self, vobj, prop):
         pass
 
-class SymbolItem(SchemeObjectItem, QtSvg.QGraphicsSvgItem):
+class SymbolItem(SchemeObjectItem, QtSvgWidgets.QGraphicsSvgItem):
 
     def __init__(self, obj, sheet):
         super().__init__(obj, sheet)

@@ -1,6 +1,6 @@
 
 import FreeCAD
-from PySide2 import QtGui, QtCore, QtWidgets, QtPrintSupport
+from PySide6 import QtGui, QtCore, QtWidgets, QtPrintSupport
 
 def PrintPreviewAction():
 
@@ -11,26 +11,26 @@ def PrintPreviewAction():
     def drawPage(printer):
         printer.setFullPage(True)
         printer.setResolution(600)
-        printer.setColorMode(printer.GrayScale)
-        m = printer.margins()
-        m.left = 0; m.top = 0; m.right = 0; m.bottom = 0
-        printer.setMargins(m)
+        printer.setColorMode(QtPrintSupport.QPrinter.ColorMode.GrayScale)
+        # Qt6: QPrinter.margins()/setMargins() were removed, use page margins API
+        printer.setPageMargins(0, 0, 0, 0)
 
         painter = QtGui.QPainter()
         painter.begin(printer)
         targetRect = printer.pageLayout().fullRectPixels(printer.resolution())
-        sourceRect = QtCore.QRect(0, 0, 210.0, 297.0) #420.0, 297.0)
+        # Qt6: scene.render() takes QRectF source/target rects
+        sourceRect = QtCore.QRectF(0, 0, 210.0, 297.0) #420.0, 297.0)
         # Ideal adjust for my A4
         sourceRect.adjust(0, -0.5, +0.7, +4.0)
-        scene.render(painter, targetRect, sourceRect)
+        scene.render(painter, QtCore.QRectF(targetRect), sourceRect)
         #asw.obj.Proxy.scene.render(painter)
         #, QtCore.QRect(0,0,printer.width(),printer.height()), QtCore.QRect(0,0,210.0,297.0))
         painter.end()
         print(f"Printer information")
         print(f"printer name :{printer.printerName()}")
         print(f"supported resolutions :{printer.supportedResolutions()}")
-        print(f"page rect:{printer.pageRect(printer.Millimeter)}")
-        print(f"paper rect:{printer.paperRect(printer.Millimeter)}")
+        print(f"page rect:{printer.pageRect(QtPrintSupport.QPrinter.Unit.Millimeter)}")
+        print(f"paper rect:{printer.paperRect(QtPrintSupport.QPrinter.Unit.Millimeter)}")
         print(f"color mode:{printer.colorMode()}")
         print(f"paper source:{printer.paperSource()}")
 
@@ -44,4 +44,4 @@ def PrintPreviewAction():
     # ------------------------------------------
     dlg = QtPrintSupport.QPrintPreviewDialog() #printer, None)
     dlg.paintRequested.connect(drawPage)
-    dlg.exec_()
+    dlg.exec()

@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore
+from PySide6 import QtGui, QtCore
 from Schematics.Features.Utils.QtEnums import *
 
 class StrokeDataProperties:

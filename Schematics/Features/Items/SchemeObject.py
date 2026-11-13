@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtWidgets
+from PySide6 import QtWidgets
 from Schematics.Features.Utils.MDI import *
 import Schematics.Features.Utils.CopyPaste as Clipbuffer
 import Schematics.Features.Utils.Snap as SN

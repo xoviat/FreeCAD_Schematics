@@ -10,7 +10,7 @@
 import re
 from SCUtils import getSymbolPath
 
-cache = dict()
+cache: dict[str, tuple[str, list[tuple[str, float, float]]]] = dict()
 
 def loadSVGSymbol(type):
     global cache

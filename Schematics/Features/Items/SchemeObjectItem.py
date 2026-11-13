@@ -7,9 +7,13 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtCore
+from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Utils.Snap import snap
 import FreeCAD
+
+# PySide6 note: unscoped enum *values* (ItemIsMovable, NoCache, ...) are only
+# reachable through the class, not through instances (unlike PySide2). All
+# such constants below are therefore referenced via QGraphicsItem.
 
 class SchemeObjectItem():
 
@@ -24,7 +28,7 @@ class SchemeObjectItem():
         self.drawMode = False
         #self.setZValue(-0.8) # Qreal from -1 ... 1. 1 = go to front
         self.positionUpdated = False
-        self.setCacheMode(self.NoCache)
+        self.setCacheMode(QtWidgets.QGraphicsItem.NoCache)
         self.markerPen = QtGui.QPen(QtGui.QColor(0, 64, 255, 128), 1.5)
         self.markerPen.setCosmetic(True)
 
@@ -52,10 +56,10 @@ class SchemeObjectItem():
     def setmode(self, mode):
         if mode == True:
             #self.curRelPos = None # ! mandatory
-            self.setFlags(self.ItemIsSelectable)
+            self.setFlags(QtWidgets.QGraphicsItem.ItemIsSelectable)
             self.setAcceptHoverEvents(True)
         else:
-            self.setFlags(self.ItemIsMovable | self.ItemIsSelectable | self.ItemSendsGeometryChanges)
+            self.setFlags(QtWidgets.QGraphicsItem.ItemIsMovable | QtWidgets.QGraphicsItem.ItemIsSelectable | QtWidgets.QGraphicsItem.ItemSendsGeometryChanges)
             self.setAcceptHoverEvents(False)  # ! Turn off hoverMoveEvent
             self.updateTransform()
         self.__drawMode = mode
@@ -64,11 +68,11 @@ class SchemeObjectItem():
 
     # Applicable to all Items
     def itemChange(self, change, value):
-        if change == self.ItemPositionChange:
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             self.positionUpdated = True
             value = snap(value, self.sheet)
             return value   # Return value with snap to grid
-        if change == self.ItemSelectedChange:
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
             if value == True:
                 #self.setFlag(self.ItemIsFocusable, True)   # For text
                 if not FreeCAD.Gui.Selection.isSelected(self.obj):

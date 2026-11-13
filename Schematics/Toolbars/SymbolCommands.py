@@ -18,7 +18,7 @@ from Schematics.Features.Items.Text import *
 from Schematics.Features.Items.Symbol import *
 from Schematics.Features.Utils.SVGSymbolsCache import loadSVGSymbol
 
-SymbolCommandList = []
+SymbolCommandList: list[str] = []
 
 def addCommand(name, function=None):
     SymbolCommandList.append(name)

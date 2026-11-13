@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtCore
+from PySide6 import QtCore
 
 # To get list
 # list = list(QtLineStyles)
@@ -32,24 +32,24 @@ Standards = [
 ]
 
 QtLineStyles = {
-    "Not displayed": QtCore.Qt.NoPen,
-    "Solid line": QtCore.Qt.SolidLine,
-    "Dash line": QtCore.Qt.DashLine,
-    "Dot line": QtCore.Qt.DotLine,
-    "Dash dot line": QtCore.Qt.DashDotLine,
-    "Dash dot dot line": QtCore.Qt.DashDotDotLine,
-    #"Custom dash line": QtCore.Qt.CustomDashLine,
+    "Not displayed": QtCore.Qt.PenStyle.NoPen,
+    "Solid line": QtCore.Qt.PenStyle.SolidLine,
+    "Dash line": QtCore.Qt.PenStyle.DashLine,
+    "Dot line": QtCore.Qt.PenStyle.DotLine,
+    "Dash dot line": QtCore.Qt.PenStyle.DashDotLine,
+    "Dash dot dot line": QtCore.Qt.PenStyle.DashDotDotLine,
+    #"Custom dash line": QtCore.Qt.PenStyle.CustomDashLine,
 }
 
 QtJoinStyles = {
-    "Miter join": QtCore.Qt.MiterJoin,
-    "Bevel join": QtCore.Qt.BevelJoin,
-    "Round join": QtCore.Qt.RoundJoin,
-    "SVG miter join": QtCore.Qt.SvgMiterJoin,
+    "Miter join": QtCore.Qt.PenJoinStyle.MiterJoin,
+    "Bevel join": QtCore.Qt.PenJoinStyle.BevelJoin,
+    "Round join": QtCore.Qt.PenJoinStyle.RoundJoin,
+    "SVG miter join": QtCore.Qt.PenJoinStyle.SvgMiterJoin,
 }
 
 QtCapStyles = {
-    "Flat cap": QtCore.Qt.FlatCap,
-    "Square cap": QtCore.Qt.SquareCap,
-    "Round cap": QtCore.Qt.RoundCap,
+    "Flat cap": QtCore.Qt.PenCapStyle.FlatCap,
+    "Square cap": QtCore.Qt.PenCapStyle.SquareCap,
+    "Round cap": QtCore.Qt.PenCapStyle.RoundCap,
 }

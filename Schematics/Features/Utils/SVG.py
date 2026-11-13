@@ -8,7 +8,7 @@
 ###############################################################################
 
 import re
-from PySide2 import QtGui
+from PySide6 import QtGui
 
 def __setColors(res, strokeColor, fillColor):
     color = res.group(0).upper()

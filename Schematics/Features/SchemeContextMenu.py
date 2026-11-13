@@ -7,7 +7,7 @@
 #
 ###############################################################################
 
-from PySide2 import QtGui, QtWidgets
+from PySide6 import QtGui, QtWidgets
 from Schematics.Features.Utils.MDI import *
 import Schematics.Features.Utils.CopyPaste
 
@@ -19,7 +19,8 @@ class ContextMenu(QtWidgets.QMenu):
         self.contextMenuScenePos = None
 
     def addActionExt(self, text, parent, func, enabled=True):
-        action = QtWidgets.QAction(text, parent, triggered=func)
+        # PySide6: QAction moved from QtWidgets to QtGui
+        action = QtGui.QAction(text, parent, triggered=func)
         action.setEnabled(enabled)
         self.addAction(action)
 
@@ -30,21 +31,21 @@ class ContextMenu(QtWidgets.QMenu):
         if len(FreeCAD.Gui.Selection.getSelection()) > 0:
             somethingSelected = True
         self.addActionExt('Copy', self, self.copy, somethingSelected)
-        self.addAction(QtWidgets.QAction('Paste', self, triggered=self.paste))
+        self.addAction(QtGui.QAction('Paste', self, triggered=self.paste))
         self.addSeparator()
-        self.addAction(QtWidgets.QAction('Paste to the same place', self, triggered=self.pasteAtSamePlace))
+        self.addAction(QtGui.QAction('Paste to the same place', self, triggered=self.pasteAtSamePlace))
         self.addActionExt('Duplicate this sheet', self, self.duplicateSheet, False)
-        action = QtWidgets.QAction('Duplicate this sheet', self, triggered=self.duplicateSheet)
+        action = QtGui.QAction('Duplicate this sheet', self, triggered=self.duplicateSheet)
         if somethingSelected:
-            self.addAction(QtWidgets.QAction('Turn Right +90°', self, triggered=self.turnRight))
-            self.addAction(QtWidgets.QAction('Turn Left -90°', self, triggered=self.turnLeft))
+            self.addAction(QtGui.QAction('Turn Right +90°', self, triggered=self.turnRight))
+            self.addAction(QtGui.QAction('Turn Left -90°', self, triggered=self.turnLeft))
         #contextMenu.hideEvent = self.contextMenuClosed
         # Remove item command?
 
     def invokeAt(self, pos):
         # Store scene position where user invoke contex menu
         self.contextMenuScenePos = self.scene.mouseCurPos
-        self.exec_(pos)
+        self.exec(pos)
 
     #def contextMenuClosed(self, event):
         #print("contextMenuClosed")
