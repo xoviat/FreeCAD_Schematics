@@ -15,6 +15,7 @@ from Schematics.Features.Utils.SVG import *
 from Schematics.Features.Utils.MDI import *
 from Schematics.Features.GridMixin import *
 import Schematics.Features.Utils.SoftMigration as SoftMigration
+from Schematics.Features.Utils.Sheets import PAPER_SIZES, paperSizeMm
 from Schematics.Utils import *
 
 
@@ -199,22 +200,59 @@ class SchemeFeature:
             svg.setZValue(-1) # QReal from -1 ... 1. -1 = go to back
             self.svg_template = svg
 
-            # Set sheet size from template
+            # Page dimensions: a standard paper size wins over the template
             templateRect = svg.renderer().viewBoxF()
-            obj.ViewObject.Width = templateRect.width()
-            obj.ViewObject.Height = templateRect.height()
-            if templateRect.width() >= templateRect.height():
-                obj.ViewObject.Orientation = "Landscape"
+            paper = paperSizeMm(
+                str(getattr(obj.ViewObject, "PaperSize", "From template")),
+                str(obj.ViewObject.Orientation),
+            )
+            # Every assignment below re-enters SchemeViewProvider.onChanged,
+            # so only assign on real changes: setting Orientation to the same
+            # value still signals, which recursed updateTemplate until the
+            # stack overflowed (segfault).
+            current_w = float(obj.ViewObject.Width.Value)
+            current_h = float(obj.ViewObject.Height.Value)
+            if paper is None:
+                # Template owns the page (original behaviour)
+                target_w = templateRect.width()
+                target_h = templateRect.height()
+                if abs(current_w - target_w) > 1e-6:
+                    obj.ViewObject.Width = target_w
+                if abs(current_h - target_h) > 1e-6:
+                    obj.ViewObject.Height = target_h
+                aspect = "Landscape" if target_w >= target_h else "Portrait"
+                if str(obj.ViewObject.Orientation) != aspect:
+                    obj.ViewObject.Orientation = aspect
+                svg.setTransform(QtGui.QTransform())   # no leftover stretch
             else:
-                obj.ViewObject.Orientation = "Portrait"
-
-            #print(svg.boundingRect(), svg.renderer().viewBoxF(), svg.renderer().aspectRatioMode())
+                width, height = paper
+                if abs(current_w - width) > 1e-6:
+                    obj.ViewObject.Width = width
+                if abs(current_h - height) > 1e-6:
+                    obj.ViewObject.Height = height
+                # Stretch the template frame to the chosen page (exact for
+                # the A-series, whose aspect never changes)
+                if templateRect.width() > 0 and templateRect.height() > 0:
+                    svg.setTransform(
+                        QtGui.QTransform().scale(
+                            width / templateRect.width(),
+                            height / templateRect.height(),
+                        ),
+                        combine=False,
+                    )
+            page_w = float(obj.ViewObject.Width.Value)
+            page_h = float(obj.ViewObject.Height.Value)
             # Make margins around sheet for comfortable scrolling
-            w = svg.boundingRect().width() * 0.25
-            h = svg.boundingRect().height() * 0.25
-            self.scene.setSceneRect(svg.boundingRect().adjusted(-w, -h, w, h))
+            w = page_w * 0.25
+            h = page_h * 0.25
+            self.scene.setSceneRect(
+                QtCore.QRectF(-w, -h, page_w + 2 * w, page_h + 2 * h)
+            )
             # Fit sheet to view
-            self.view.fitInView(svg.boundingRect().adjusted(-20, -20, 20, 20), QtCore.Qt.KeepAspectRatio)
+            self.view.fitInView(
+                QtCore.QRectF(-20, -20, page_w + 40, page_h + 40),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+            )
 
     def onSelect(self):
         # if Visibility == False this means that the window was closed by the user 
@@ -268,11 +306,13 @@ class SchemeViewProvider(GridViewProperties):
         # Move that to data
         vobj.addProperty('App::PropertyEnumeration', 'Orientation', 'Base', "Sheet orientation horizontal or vertical").Orientation = \
               ['Landscape', 'Portrait']
+        vobj.addProperty('App::PropertyEnumeration', 'PaperSize', 'Base',
+                         "Standard paper size; the template frame is scaled to fit").PaperSize = list(PAPER_SIZES)
         vobj.addProperty('App::PropertyLength', 'Width', 'Size', 'Sheet width getted from svg template (read only)').Width = '0 mm'
         vobj.addProperty('App::PropertyLength', 'Height', 'Size', 'Sheet height getted from svg template (read only)').Height = '0 mm'
         vobj.setPropertyStatus("Width", "ReadOnly")
         vobj.setPropertyStatus("Height", "ReadOnly")
-        vobj.setPropertyStatus("Orientation", "ReadOnly")
+        # Orientation stays editable: standard paper sizes flip with it
         # !!! Save view port rect
         super().__init__(vobj)
         vobj.Proxy = self
@@ -289,6 +329,13 @@ class SchemeViewProvider(GridViewProperties):
         if not hasattr(vobj.Object.Proxy, "scene"):
             return
         super().onChanged(vobj, prop)
+        if prop in ("PaperSize", "Orientation"):
+            # Standard sizes own the page dimensions: re-render the
+            # template frame stretched to the page and refit the view.
+            try:
+                vobj.Object.Proxy.updateTemplate(vobj.Object)
+            except (ReferenceError, RuntimeError, AttributeError):
+                pass
         return
 
     def onDelete(self, vobj, subelements):

@@ -99,6 +99,12 @@ switch tabs (KiCad's sheet navigation) and the **Sheet index** (`Ctrl+H`, KiCad'
 navigator) lists all pages with their symbol and wire counts. Real hierarchical sheets
 (parent/child references across pages) are not modelled yet - sheets are peers.
 
+**Sheet size** is configurable like in a CAD program: the sheet's *View* properties carry a
+**PaperSize** dropdown (`From template`, A0-A5, Letter, Legal, Tabloid) plus the editable
+**Orientation**. Standard sizes set the page dimensions directly and the template frame is
+stretched to fit (exact for the A-series); `From template` hands the dimensions back to the
+SVG template's own viewBox.
+
 ### Print and PDF
 
 **File → Print / Print preview** (Ctrl+P) renders the sheet exactly as drawn - page size and

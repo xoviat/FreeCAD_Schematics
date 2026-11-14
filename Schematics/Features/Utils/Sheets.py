@@ -82,3 +82,32 @@ def sheetIndexRows(document: Any = None) -> list[SheetRow]:
                 continue
         rows.append(SheetRow(page=page, name=label, symbols=symbols, wires=wires))
     return rows
+
+
+#: Standard paper sizes as portrait (width, height) millimetres.
+PAPER_DIMS_MM: dict[str, tuple[float, float]] = {
+    "A0": (841.0, 1189.0),
+    "A1": (594.0, 841.0),
+    "A2": (420.0, 594.0),
+    "A3": (297.0, 420.0),
+    "A4": (210.0, 297.0),
+    "A5": (148.0, 210.0),
+    "Letter": (215.9, 279.4),
+    "Legal": (215.9, 355.4),
+    "Tabloid": (279.4, 431.8),
+}
+
+#: Choices of the sheet's PaperSize property (CAD-style paper dropdown).
+PAPER_SIZES: list[str] = ["From template"] + list(PAPER_DIMS_MM)
+
+
+def paperSizeMm(size: str, orientation: str = "Landscape") -> tuple[float, float] | None:
+    """Page (width, height) in mm for a standard size, orientation-aware.
+    Returns None for "From template" - the SVG template owns the page."""
+    dims = PAPER_DIMS_MM.get(size)
+    if dims is None:
+        return None
+    width, height = dims
+    if orientation == "Landscape":
+        return (height, width)
+    return (width, height)

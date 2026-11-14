@@ -472,6 +472,44 @@ def t_wire_draw_ux():
     assert scene.drawingWire is False
 step("wire drawing UX (posture + finish-on-connection)", t_wire_draw_ux)
 
+def t_sheet_size():
+    from Schematics.Features.Utils.Sheets import (
+        PAPER_SIZES,
+        paperSizeMm,
+    )
+
+    v = sheet.ViewObject
+    # pure helper: portrait dims, orientation swap, template sentinel
+    assert paperSizeMm("A4", "Portrait") == (210.0, 297.0)
+    assert paperSizeMm("A4", "Landscape") == (297.0, 210.0)
+    assert paperSizeMm("Letter", "Portrait") == (215.9, 279.4)
+    assert paperSizeMm("From template") is None
+    assert PAPER_SIZES[0] == "From template" and "A1" in PAPER_SIZES
+
+    # the sheet starts template-owned (Default.svg is 420x297 landscape)
+    assert str(v.PaperSize) == "From template", v.PaperSize
+    assert abs(float(v.Width.Value) - 420.0) < 0.01, v.Width
+    assert abs(float(v.Height.Value) - 297.0) < 0.01, v.Height
+
+    # CAD-style dropdown: standard size + orientation
+    v.PaperSize = "A4"   # sheet orientation is Landscape here
+    assert abs(float(v.Width.Value) - 297.0) < 0.01, v.Width
+    assert abs(float(v.Height.Value) - 210.0) < 0.01, v.Height
+    v.Orientation = "Portrait"
+    assert abs(float(v.Width.Value) - 210.0) < 0.01, v.Width
+    assert abs(float(v.Height.Value) - 297.0) < 0.01, v.Height
+    v.PaperSize = "Letter"
+    assert abs(float(v.Width.Value) - 215.9) < 0.01, v.Width
+    assert abs(float(v.Height.Value) - 279.4) < 0.01, v.Height
+
+    # back to template-owned dimensions (aspect restores orientation)
+    v.PaperSize = "From template"
+    assert abs(float(v.Width.Value) - 420.0) < 0.01, v.Width
+    assert abs(float(v.Height.Value) - 297.0) < 0.01, v.Height
+    assert str(v.Orientation) == "Landscape", v.Orientation
+    FreeCAD.ActiveDocument.recompute()
+step("paper size property (A4/Letter/template)", t_sheet_size)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
