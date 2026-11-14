@@ -13,6 +13,7 @@ from SCUtils import *
 from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.Utils.SVG import *
 from Schematics.Utils import GetToolBarButtonAction
+from PySide6 import QtWidgets
 
 CommandList: list[str] = []
 
@@ -122,5 +123,26 @@ class SCSheetAppearance:
         return activeWindowIsScheme()
 
 addCommand('SCSheetAppearance', SCSheetAppearance())
+
+
+class SCExportPdf:
+    """ Export the active sheet to a PDF file """
+
+    def GetResources(self):
+        return {
+            'Pixmap': getToolbarIconPath('ExportPdf.svg'),
+            'MenuText': "Export PDF…",
+            'ToolTip': "Export the active sheet to a PDF file "
+                       "(page size and orientation follow the sheet)",
+        }
+
+    def Activated(self):
+        from Schematics.Features.Utils.Printing import exportPdfInteractive
+        exportPdfInteractive(FreeCAD.Gui.getMainWindow())
+
+    def IsActive(self):
+        return activeWindowIsScheme()
+
+addCommand('SCExportPdf', SCExportPdf())
 
 # Duplicate sheet command

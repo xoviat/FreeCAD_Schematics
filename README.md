@@ -17,7 +17,6 @@ It is important to note: if select an object in document treeview, then the wind
 this object located is automatically activates.
 
 Not supported features:
-* Printing a drawing is not possible yet.
 * A convenient and fast way to make a copy of an existing sheet is not available yet.
 
 ## Main concepts
@@ -56,6 +55,12 @@ prefix (`schematics:ref`, set in the symbol manager's pin editor - `Resistor` sh
 The **Annotate sheet** command fills any remaining empty designators without collisions.
 The designator is drawn above the symbol and the value below it; the value stays hidden
 while it equals the library name, exactly like KiCad's default fields.
+
+### Print and PDF
+
+**File → Print / Print preview** (Ctrl+P) renders the sheet exactly as drawn - page size and
+orientation follow the sheet's template (A4/A3, portrait/landscape), fitted without distortion.
+**Export PDF…** writes the same rendering to a PDF file.
 
 ### Component list
 

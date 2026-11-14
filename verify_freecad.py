@@ -207,6 +207,41 @@ def t_component_list():
     dialog.close()   # no deleteLater: races the hard os._exit() at the end
 step("component list (rows, text, csv, dialog)", t_component_list)
 
+def t_print_pdf():
+    import os
+    import shutil
+    import tempfile
+    from Schematics.Features.Utils.Printing import (
+        exportPdf,
+        pageSizeFor,
+        pageOrientationFor,
+        sheetSizeMm,
+    )
+
+    width, height = sheetSizeMm(sheet)
+    assert width > 0 and height > 0, (width, height)
+    # the default template is A4 landscape: 420x297
+    assert pageSizeFor(width, height).id() != \
+        __import__("PySide6").QtGui.QPageSize.PageSizeId.A4 or width > height
+    orientation = pageOrientationFor(width, height)
+    assert orientation in (
+        __import__("PySide6").QtGui.QPageLayout.Orientation.Landscape,
+        __import__("PySide6").QtGui.QPageLayout.Orientation.Portrait,
+    ), orientation
+
+    tmp = tempfile.mkdtemp(prefix="sc_pdf_")
+    try:
+        path = os.path.join(tmp, "sheet.pdf")
+        exportPdf(sheet, path)
+        assert os.path.exists(path), "PDF not written"
+        with open(path, "rb") as fh:
+            header = fh.read(5)
+        assert header == b"%PDF-", header
+        assert os.path.getsize(path) > 1000, os.path.getsize(path)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+step("PDF export (QPdfWriter)", t_print_pdf)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
