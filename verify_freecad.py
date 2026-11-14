@@ -316,6 +316,47 @@ def t_wire_labels():
     assert danglingEnds(sheet) != []
 step("wire labels (Tag) + labelled nets", t_wire_labels)
 
+def t_net_hover():
+    from Schematics.Features.Utils.Connectivity import (
+        netClosure,
+        wireByName,
+    )
+
+    wires = [o for o in FreeCAD.ActiveDocument.Objects
+             if getattr(o, "Type", "") == "Wire"]
+    assert len(wires) == 2, len(wires)
+    first, second = wires
+
+    # T junction: the new wire's start lands on the first wire's body
+    # (segment (45,5)-(45,35))
+    third = __main__.Schematics.Wire([(45, 20), (60, 20)], sheet)
+    closure = netClosure(sheet, first.Name)
+    assert third.Name in closure, (closure, third.Name)
+    assert second.Name not in closure, closure
+
+    # labels join wires regardless of geometry
+    first.Tag = "N1"
+    second.Tag = "N1"
+    closure = netClosure(sheet, first.Name)
+    assert second.Name in closure and third.Name in closure, closure
+
+    # highlight flags propagate to every member and clear together
+    item0 = first.Proxy.item
+    item0._setNetHighlight(True)
+    assert item0._netHighlight is True
+    for name in netClosure(sheet, first.Name):
+        member = wireByName(sheet, name)
+        assert member is not None
+        assert member.Proxy.item._netHighlight is True, name
+    item0._setNetHighlight(False)
+    for name in netClosure(sheet, first.Name):
+        member = wireByName(sheet, name)
+        assert member.Proxy.item._netHighlight is False, name
+
+    first.Tag = ""
+    second.Tag = ""
+step("net closure + hover highlight", t_net_hover)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
@@ -416,11 +457,11 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 7, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 8, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
-    assert len(wires) == 2, "wires did not survive save/load: %r" % wires
+    assert len(wires) == 3, "wires did not survive save/load: %r" % wires
     assert len(wires[0].Points) == 3, "wire points lost: %r" % wires[0].Points
     assert wires[0].Proxy.item is not None, "wire item not rebuilt after reload"
 step("reload + onDocumentRestored", t_reload)

@@ -151,6 +151,37 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         super().__init__(obj, sheet)
         # Wires sit under symbols so terminals stay visible on top.
         self.setZValue(-0.5)
+        self._netHighlight = False
+        self.setAcceptHoverEvents(True)
+
+    # ------------------------------------------------------------------
+    # Net highlight (KiCad hover)
+    # ------------------------------------------------------------------
+    def hoverEnterEvent(self, event: QtWidgets.QGraphicsSceneHoverEvent) -> None:
+        self._setNetHighlight(True)
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event: QtWidgets.QGraphicsSceneHoverEvent) -> None:
+        self._setNetHighlight(False)
+        super().hoverLeaveEvent(event)
+
+    def _setNetHighlight(self, on: bool) -> None:
+        """Toggle the accent colour on this wire's whole net."""
+        try:
+            name = str(self.obj.Name)
+        except (ReferenceError, RuntimeError, AttributeError):
+            return
+        from Schematics.Features.Utils.Connectivity import netClosure, wireByName
+        for wireName in netClosure(self.sheet, name):
+            wire = wireByName(self.sheet, wireName)
+            if wire is None:
+                continue
+            try:
+                item = wire.Proxy.item
+            except (ReferenceError, RuntimeError, AttributeError):
+                continue
+            item._netHighlight = on
+            item.update()
 
     # ------------------------------------------------------------------
     # Geometry
@@ -236,9 +267,14 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         color: Any = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
         if self.isSelected():
             color = QtCore.Qt.GlobalColor.green
-        pen: QtGui.QPen = getattr(self.obj.ViewObject.Proxy, "pen", None) \
-            or QtGui.QPen(color, 0.5)
-        pen.setColor(color)
+        pen: QtGui.QPen
+        if getattr(self, "_netHighlight", False):
+            # KiCad-style net highlight: accent colour, slightly heavier
+            pen = QtGui.QPen(QtGui.QColor("#2563eb"), self._strokeWidth() + 1.0)
+        else:
+            pen = getattr(self.obj.ViewObject.Proxy, "pen", None) \
+                or QtGui.QPen(color, 0.5)
+            pen.setColor(color)
         g.setPen(pen)
 
         path = QtGui.QPainterPath(pts[0])

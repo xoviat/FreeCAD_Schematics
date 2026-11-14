@@ -197,6 +197,121 @@ def _symbolLabel(obj: Any) -> str:
     return str(getattr(obj, "Type", getattr(obj, "Name", "?")))
 
 
+def wireByName(sheet: Any, name: str) -> Any | None:
+    """The wire object with this Name, or None."""
+    for wire in _wires(sheet):
+        try:
+            if str(wire.Name) == name:
+                return wire
+        except (ReferenceError, RuntimeError, AttributeError):
+            continue
+    return None
+
+
+def _wirePolyline(sheet: Any, wire: Any) -> list[QtCore.QPointF]:
+    """Scene positions of every wire vertex (>= 2 points)."""
+    try:
+        item = wire.Proxy.item
+        points = list(wire.Points)
+    except (ReferenceError, RuntimeError, AttributeError):
+        return []
+    if len(points) < 2:
+        return []
+    vertices: list[QtCore.QPointF] = []
+    for vertex in points:
+        try:
+            vertices.append(
+                item.mapToScene(QtCore.QPointF(vertex.x, vertex.y))
+            )
+        except (ReferenceError, RuntimeError, AttributeError):
+            return []
+    return vertices
+
+
+def _pointSegmentDistance(
+    point: QtCore.QPointF,
+    start: QtCore.QPointF,
+    end: QtCore.QPointF,
+) -> float:
+    """Distance from point to the segment start-end (0 when on it)."""
+    dx = end.x() - start.x()
+    dy = end.y() - start.y()
+    seg_sq = dx * dx + dy * dy
+    if seg_sq <= 0.0:
+        return math.hypot(point.x() - start.x(), point.y() - start.y())
+    t = ((point.x() - start.x()) * dx + (point.y() - start.y()) * dy) / seg_sq
+    t = max(0.0, min(1.0, t))
+    return math.hypot(point.x() - (start.x() + t * dx), point.y() - (start.y() + t * dy))
+
+
+def netClosure(sheet: Any, seed: str) -> set[str]:
+    """All wires joined to the seed wire.
+
+    Joins: identical label (KiCad net labels), endpoint-to-endpoint
+    contact within tolerance, or an endpoint landing on another wire's
+    body (T junction - the drawing tools snap, so users draw these
+    naturally). Fixed-point expansion, bounded by the wire count.
+    """
+    tol = connectionTolerance(sheet)
+    names: list[str] = []
+    tags: dict[str, str] = {}
+    lines: dict[str, list[QtCore.QPointF]] = {}
+    for wire in _wires(sheet):
+        try:
+            name = str(wire.Name)
+        except (ReferenceError, RuntimeError, AttributeError):
+            continue
+        names.append(name)
+        tags[name] = wireTag(wire)
+        lines[name] = _wirePolyline(sheet, wire)
+    if seed not in lines:
+        return {seed} if seed else set()
+
+    members: set[str] = {seed}
+    changed = True
+    while changed:
+        changed = False
+        member_labels = {tags[m] for m in members if tags.get(m)}
+        member_ends = [
+            (m, lines[m][i]) for m in members if lines[m] for i in (0, -1)
+        ]
+        member_segments = [
+            (lines[m][i], lines[m][i + 1])
+            for m in members
+            if lines[m]
+            for i in range(len(lines[m]) - 1)
+        ]
+        for name in names:
+            if name in members or not lines[name]:
+                continue
+            joined = bool(tags.get(name) and tags[name] in member_labels)
+            if not joined:
+                ends = (lines[name][0], lines[name][-1])
+                joined = any(
+                    math.hypot(e.x() - m.x(), e.y() - m.y()) <= tol
+                    for e in ends
+                    for _mn, m in member_ends
+                )
+            if not joined:
+                our_segments = [
+                    (lines[name][i], lines[name][i + 1])
+                    for i in range(len(lines[name]) - 1)
+                ]
+                joined = any(
+                    _pointSegmentDistance(e, a, b) <= tol
+                    for e in (lines[name][0], lines[name][-1])
+                    for a, b in member_segments
+                ) or any(
+                    _pointSegmentDistance(m, a, b) <= tol
+                    for _mn, m in member_ends
+                    for a, b in our_segments
+                )
+            if joined:
+                members.add(name)
+                changed = True
+    return members
+
+
 def connectionReport(sheet: Any) -> str:
     """Human-readable check result (empty problems = success line)."""
     labels: dict[str, str] = {}

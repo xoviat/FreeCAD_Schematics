@@ -65,6 +65,10 @@ property (the property name `Label` is taken by FreeCAD's built-in tree label).
 
 ### Check connections
 
+Hovering a wire highlights its whole net in blue - KiCad's net highlight: label groups,
+end-to-end contacts and T junctions (an endpoint landing on another wire's body) all join
+the closure, and the highlight toggles off when the cursor leaves.
+
 **Check connections** runs a geometric ERC-lite: pins with no wire endpoint and wire ends
 resting on neither a pin nor another wire. Connections are matched with the same tolerance
 the wire tool snaps with, resolved through the item transforms (rotation-safe). Electrical
