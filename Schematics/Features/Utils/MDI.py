@@ -117,3 +117,21 @@ def closeSchemeWindowsOfDocument(document):
             # paint-time retire in SchemeGraphicsScene is the fallback.
             pass
     return closed
+
+def cycleSheet(delta: int) -> None:
+    """Focus the previous/next scheme tab (KiCad PgUp/PgDn)."""
+    area = getMdiArea()
+    if area is None:
+        return
+    windows = [
+        sw for sw in area.subWindowList()
+        if sw.__class__.__name__ == 'SchemeMDIView'
+    ]
+    if len(windows) < 2:
+        return
+    current = area.activeSubWindow()
+    try:
+        index = windows.index(current)
+    except ValueError:
+        index = 0
+    area.setActiveSubWindow(windows[(index + delta) % len(windows)])

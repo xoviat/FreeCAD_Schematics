@@ -357,6 +357,38 @@ def t_net_hover():
     second.Tag = ""
 step("net closure + hover highlight", t_net_hover)
 
+def t_multi_page():
+    from Schematics.Features.Dialogs.SheetIndex import SheetIndexDialog
+    from Schematics.Features.Utils.Sheets import (
+        pageIndex,
+        schemeObjects,
+        sheetIndexRows,
+    )
+
+    # one sheet so far: page 1 of 1
+    page, total = pageIndex(sheet)
+    assert (page, total) == (1, 1), (page, total)
+
+    # a second sheet makes the numbering real
+    Gui.runCommand("SCNewScheme")
+    schemes = schemeObjects()
+    assert len(schemes) == 2, len(schemes)
+    first_page, first_total = pageIndex(schemes[0])
+    second_page, second_total = pageIndex(schemes[1])
+    assert (first_page, first_total) == (1, 2), (first_page, first_total)
+    assert (second_page, second_total) == (2, 2), (second_page, second_total)
+
+    rows = sheetIndexRows()
+    assert len(rows) == 2, rows
+    assert rows[0].symbols == 2, rows[0]     # R1, R2 on page 1
+    assert rows[0].wires == 3, rows[0]       # original + R1 link + T junction
+    assert rows[1].symbols == 0 and rows[1].wires == 0, rows[1]
+
+    dialog = SheetIndexDialog(rows)
+    assert dialog.table.rowCount() == 2
+    dialog.close()   # no deleteLater: races the hard os._exit()
+step("page numbers + sheet index", t_multi_page)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()

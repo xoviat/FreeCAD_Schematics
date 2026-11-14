@@ -75,6 +75,13 @@ the wire tool snaps with, resolved through the item transforms (rotation-safe). 
 pin types and net names are not modelled yet - this checks that the drawing is wired, not
 that it is electrically legal.
 
+### Pages and sheet index
+
+Every sheet draws its **Page N of M** number bottom-right, in document order. `PgUp`/`PgDn`
+switch tabs (KiCad's sheet navigation) and the **Sheet index** (`Ctrl+H`, KiCad's hierarchy
+navigator) lists all pages with their symbol and wire counts. Real hierarchical sheets
+(parent/child references across pages) are not modelled yet - sheets are peers.
+
 ### Print and PDF
 
 **File → Print / Print preview** (Ctrl+P) renders the sheet exactly as drawn - page size and
@@ -201,6 +208,8 @@ The sheet view follows the KiCad schematic editor's default hotkeys so muscle me
 | `Del` | Delete selection |
 | `Esc` | Cancel active tool (wire, placement) / clear selection |
 | `Home` | Zoom to fit the sheet |
+| `PgUp` / `PgDn` | Previous / next sheet tab |
+| `Ctrl+H` | Sheet index (page, name, symbol and wire counts) |
 | `Enter` / double-click | Finish wire, place the chosen symbol |
 | `Ctrl+E` | Symbol manager (pin editor opens directly for the selected symbol) |
 | `Ctrl+C/X/V`, `Ctrl+Z/Y` | Clipboard and undo/redo (FreeCAD defaults) |

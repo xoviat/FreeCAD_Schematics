@@ -206,6 +206,29 @@ class SCCheckConnections:
 
 addCommand('SCCheckConnections', SCCheckConnections())
 
+
+class SCSheetIndex:
+    """ Index of all sheets in the document (KiCad Ctrl+H navigator) """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('SheetIndex.svg'),
+            'MenuText': "Sheet index…",
+            'ToolTip': "Page number, name, symbol and wire count for every "
+                       "sheet in the document",
+            'Accel': 'Ctrl+H',
+        }
+
+    def Activated(self) -> None:
+        from Schematics.Features.Dialogs.SheetIndex import openSheetIndex
+        openSheetIndex(FreeCAD.Gui.getMainWindow())
+
+    def IsActive(self) -> bool:
+        return True
+
+
+addCommand('SCSheetIndex', SCSheetIndex())
+
 class PrimitiveCommand:
     """ Add primitive """
 
