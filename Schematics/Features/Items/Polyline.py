@@ -99,6 +99,10 @@ class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
     def paint(self, g, option, widget):
         if not self.isVisible():
             return
+        try:
+            self.obj.Name   # liveness probe: object may be deleted
+        except ReferenceError:
+            return
         # Don't display the selection rect to improve performance
         if self.drawMode == False:
             self.prepareGeometryChange()

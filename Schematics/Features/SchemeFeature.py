@@ -34,13 +34,25 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
     def __init__(self, obj):
         super().__init__()
         self.obj = obj
+        # Remember which document this window belongs to: the wrapper can
+        # be compared by name later even after the object is deleted
+        # (used by closeSchemeWindowsOfDocument on document close).
+        self.docName = obj.Document.Name
         self.setMouseTracking(True)
 
     def closeEvent(self, event):
         #print("Tab is closed")
-        setattr(self.obj, "Visibility", False)
-        # removeSelection is mandatory for invoke setSelection event if user select sheet again
-        FreeCAD.Gui.Selection.removeSelection(self.obj)
+        # The document object may already be deleted (document closed while
+        # the window was open): attribute access then raises ReferenceError
+        # and there is nothing left to update.
+        try:
+            setattr(self.obj, "Visibility", False)
+            # removeSelection is mandatory for invoke setSelection event if user select sheet again
+            FreeCAD.Gui.Selection.removeSelection(self.obj)
+        except Exception:
+            # Teardown must never fail: the object/document may be dying
+            # and selection may already be half-destroyed.
+            pass
         super().closeEvent(event)
 
 class SchemeFeature:
@@ -212,12 +224,25 @@ class SchemeFeature:
         activateSceneTab(self.scene)
 
     def onDelete(self):
-        # If window exist delete all items and close it
-        if isWindowExist(self.obj) is not None:
-            delattr(self, "svg_template")
-            for x in self.obj.Elements:
-               delattr(x.Proxy, "item")
-            self.frame.close()
+        # Close the window when the sheet is removed. The document object
+        # may already be deleted (document closed) and svg_template or the
+        # item attrs may be missing — never let this raise, or the stale
+        # window would survive and keep repainting the deleted object.
+        frame = getattr(self, "frame", None)
+        try:
+            if frame is not None and isWindowExist(self.obj) is not None:
+                if hasattr(self, "svg_template"):
+                    delattr(self, "svg_template")
+                for x in self.obj.Elements:
+                    if hasattr(x.Proxy, "item"):
+                        delattr(x.Proxy, "item")
+        except (ReferenceError, RuntimeError, AttributeError):
+            pass   # object already half-deleted; still close below
+        if frame is not None:
+            try:
+                frame.close()
+            except RuntimeError:
+                pass   # Qt widget already destroyed
 
     def execute(self, obj):
         """ Called on document recompute """

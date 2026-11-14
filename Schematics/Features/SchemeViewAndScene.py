@@ -119,8 +119,16 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
     def drawForeground(self, g, rect):
         ### g.drawText(50, 50, str(len(self.items())))
 
-        # ! Do not paint anything while the file is loading
-        if not hasattr(self.obj, "Proxy"):
+        # ! Do not paint anything while the file is loading.
+        # FreeCAD raises ReferenceError (not AttributeError) when a deleted
+        # object is touched and hasattr() does not swallow it — without the
+        # try below this spams one traceback per repaint after the document
+        # holding the sheet was closed.
+        try:
+            if not hasattr(self.obj, "Proxy"):
+                return
+        except ReferenceError:
+            self.retireStaleWindow()
             return
 
         #svg = self.obj.Proxy.svg_template
@@ -168,7 +176,30 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                     elif minorLinesIsVisible:
                         g.drawLine(QtCore.QPointF(0, yd), QtCore.QPointF(sheetWidth, yd))
                 i += 1
-    
+
+    def retireStaleWindow(self):
+        """ Close the MDI window bound to a deleted document object.
+
+        Deferred with a zero timer because this is called from inside a
+        paint event, where destroying widgets is not allowed. """
+        if getattr(self, "_retiring", False):
+            return
+        self._retiring = True
+
+        def _close():
+            for view in self.views():
+                widget: QtWidgets.QWidget | None = view
+                while widget is not None:
+                    if widget.__class__.__name__ == 'SchemeMDIView':
+                        try:
+                            widget.close()
+                        except RuntimeError:
+                            pass   # already destroyed
+                        return
+                    widget = widget.parentWidget()
+
+        QtCore.QTimer.singleShot(0, _close)
+
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
 

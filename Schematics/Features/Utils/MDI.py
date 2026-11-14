@@ -27,7 +27,15 @@ def tryToGetSchemeFromActiveWindow():
     activeSubWindow = getMdiArea().activeSubWindow()
     #if hasattr(activeSubWindow, 'obj') and hasattr(activeSubWindow.obj, 'Elements'):  # < --- Altrenative
     if activeSubWindow.__class__.__name__ == 'SchemeMDIView':
-        return activeSubWindow.obj
+        obj = activeSubWindow.obj
+        # The window can outlive its document object (document closed
+        # while the tab stayed open): any attribute access on a deleted
+        # object raises ReferenceError, so treat the sheet as absent.
+        try:
+            obj.Name
+        except ReferenceError:
+            return None
+        return obj
     return None
 
 def activeWindowIsScheme():
@@ -54,3 +62,58 @@ def activateSceneTab(scene):
                     mdi.setActiveSubWindow(sw)
                     w.setFocus()
                     break
+
+def closeSchemeWindowsOfDocument(document):
+    """ Close scheme windows that belong to the given document.
+
+    The MDI windows are Qt widgets owned by the main window, not by the
+    document, so nothing else destroys them on document close; kept alive
+    they keep repainting deleted objects and answer commands with them.
+    Called synchronously while the document is closing — before the event
+    loop can deliver a paint to the stale view. Returns the number of
+    windows closed. """
+    # Gui observers receive Gui.Document, App observers App.Document.
+    appDoc = getattr(document, "Document", None) or document
+    try:
+        appDocName = appDoc.Name
+    except Exception:
+        appDocName = None
+    mdi = getMdiArea()
+    if mdi is None:
+        return 0
+    closed = 0
+    for sw in list(mdi.subWindowList()):
+        if sw.__class__.__name__ != 'SchemeMDIView':
+            continue
+        try:
+            docName = getattr(sw, "docName", None)
+            if docName is not None and appDocName is not None:
+                belongs = docName == appDocName
+            else:
+                # Fallback when the window does not remember its document:
+                # only an already deleted object identifies the closing
+                # document's window (other documents stay untouched).
+                try:
+                    sw.obj.Name
+                    belongs = False
+                except ReferenceError:
+                    belongs = True
+            if belongs:
+                # Detach the view from the scene first: the window is
+                # destroyed via deleteLater() while the document's scene may
+                # be garbage-collected as soon as the objects die — a view
+                # destructor touching an already freed scene crashes the
+                # whole process at teardown (exit 127, intermittent).
+                view = sw.widget()
+                setScene = getattr(view, "setScene", None)
+                if callable(setScene):
+                    setScene(None)
+                print(f"Closing scheme window '{sw.windowTitle()}' "
+                      f"of deleted document '{appDocName}'")
+                sw.close()
+                closed += 1
+        except Exception:
+            # Never let window teardown break document closing; the
+            # paint-time retire in SchemeGraphicsScene is the fallback.
+            pass
+    return closed

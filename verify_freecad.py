@@ -1,5 +1,5 @@
-# Run with:
-#   FreeCAD.exe -M <this-dir> verify_freecad.py
+# Run with (install the workbench first — python install.py):
+#   FreeCAD.exe verify_freecad.py
 # End-to-end verification of the Schematics workbench under FreeCAD 1.1.4 / PySide6
 import os, sys, traceback
 import __main__
@@ -110,10 +110,38 @@ def t_cleanup_api():
     FreeCAD.ActiveDocument.recompute()
 step("delete element + recompute", t_cleanup_api)
 
+def t_close_no_stale_window():
+    # Regression (issues.txt): closing the document must not leave the
+    # scheme MDI window behind - it kept repainting the deleted object
+    # (one ReferenceError per repaint) and made symbol commands fail
+    # against the dead sheet.
+    from PySide6 import QtWidgets
+    mdi = Gui.getMainWindow().findChild(QtWidgets.QMdiArea)
+    FreeCAD.closeDocument(FreeCAD.ActiveDocument.Name)
+    app = QtWidgets.QApplication.instance()
+    for _ in range(30):   # let the deferred sweep timer and paints run
+        app.processEvents()
+    stale = [sw for sw in mdi.subWindowList()
+             if sw.__class__.__name__ == "SchemeMDIView"]
+    assert not stale, "stale scheme windows after document close: %r" % stale
+    from Schematics.Features.Utils.MDI import tryToGetSchemeFromActiveWindow
+    assert tryToGetSchemeFromActiveWindow() is None
+step("close document leaves no stale window", t_close_no_stale_window)
+
 log("RESULT: %d PASS / %d FAIL" % (
     sum(1 for l in lines if l.startswith("PASS")),
     sum(1 for l in lines if l.startswith("FAIL"))))
 open(LOG, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+# Drain pending Qt events (deferred deletes etc.) and flush the streams
+# before the hard exit: an event racing os._exit intermittently took the
+# process down at teardown (exit 127 + "Abnormal program termination").
+from PySide6 import QtWidgets as _QtWidgets
+_app = _QtWidgets.QApplication.instance()
+if _app is not None:
+    for _ in range(10):
+        _app.processEvents()
+sys.stdout.flush()
+sys.stderr.flush()
 # Do NOT Gui.getMainWindow().close() here: a modified document pops a modal
 # save dialog and hangs the headless run. Hard-exit after the log is written.
 os._exit(0)

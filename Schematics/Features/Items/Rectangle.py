@@ -60,9 +60,14 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
             return QtCore.QRectF(-5e+3, -5e+3, 10e+3, 10e+3)
         # Draw completed
         else:
-            w = self.obj.ViewObject.StrokeWidth.Value
-            m = 1   # Margin
-            rect = QtCore.QRectF(-w/2, -w/2, self.obj.Width.Value+w, self.obj.Height.Value+w).normalized()
+            try:
+                w = self.obj.ViewObject.StrokeWidth.Value
+                m = 1   # Margin
+                rect = QtCore.QRectF(-w/2, -w/2, self.obj.Width.Value+w, self.obj.Height.Value+w).normalized()
+            except ReferenceError:
+                # Object deleted (document closed / element removed):
+                # empty rect so Qt stops laying out and painting us.
+                return QtCore.QRectF(0, 0, 0, 0)
             return rect.adjusted(-m, -m, m, m)
 
     def shape(self):
@@ -70,9 +75,12 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
         if self.drawMode:
             path.addRect(self.boundingRect())
         else:
-            rect = QtCore.QRectF(0, 0, self.obj.Width.Value, self.obj.Height.Value).normalized()
-            margin = 1   # Margin
-            m = self.obj.ViewObject.StrokeWidth.Value + margin
+            try:
+                rect = QtCore.QRectF(0, 0, self.obj.Width.Value, self.obj.Height.Value).normalized()
+                margin = 1   # Margin
+                m = self.obj.ViewObject.StrokeWidth.Value + margin
+            except ReferenceError:
+                return path   # no hit area for a deleted object
             path.addRect(rect.adjusted(-m, -m, m, m))
             rect = rect.adjusted(m, m, -m, -m)
             # Do not draw internal rect if shape is small
@@ -82,6 +90,10 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
 
     def paint(self, g, option, widget):
         if not self.isVisible():
+            return
+        try:
+            self.obj.Name   # liveness probe: object may be deleted
+        except ReferenceError:
             return
         g.save()
         g.beginNativePainting()

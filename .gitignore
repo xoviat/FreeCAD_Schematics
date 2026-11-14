@@ -3,3 +3,5 @@
 __pycache__/
 *.FCStd
 _fc*.log
+issues.txt
+_fc_*

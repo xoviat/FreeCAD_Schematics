@@ -79,6 +79,12 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
         if self.drawMode:
             return QtCore.QRectF(-5e+3, -5e+3, 10e+3, 10e+3)
         else:
+            try:
+                self.obj.Name   # liveness probe: object may be deleted
+            except ReferenceError:
+                # Object deleted (document closed / element removed):
+                # empty rect so Qt stops laying out and painting us.
+                return QtCore.QRectF(0, 0, 0, 0)
             rect = super().boundingRect()
             self.obj.Width = rect.width()
             self.obj.Height = rect.height()

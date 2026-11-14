@@ -53,7 +53,11 @@ class SchematicsWorkbench(FreeCAD.Gui.Workbench):
 # See the note in the class body: assigned at module level on purpose.
 SchematicsWorkbench.Icon = getIconPath("Schematics.svg")
 
-FreeCAD.Gui.addWorkbench(SchematicsWorkbench())
+# FreeCAD may execute this file twice (workbench installed in the user Mod
+# directory AND passed with -M for development): a second registration
+# raises "'SchematicsWorkbench' already exists" and aborts FreeCAD.
+if "SchematicsWorkbench" not in FreeCAD.Gui.listWorkbenches():
+    FreeCAD.Gui.addWorkbench(SchematicsWorkbench())
 
 # Embedding the Schematics API in FreeCAD
 from Schematics.API import API
@@ -75,12 +79,31 @@ class GuiDocumentObserver:
     # Close all connected tabs!!!
 
     def slotDeletedObject(self, viewProviderObject):
-        if viewProviderObject.TypeId == 'Gui::ViewProviderPythonFeature':
-            print('slotDeletedObject')
-            print('Object delete: ', viewProviderObject.Object.Name)
-            # If method exist invoke it
-            if hasattr(viewProviderObject.Object.Proxy, 'onDelete'):
-                viewProviderObject.Object.Proxy.onDelete()
+        # During teardown the view provider can already be dead: attribute
+        # access raises ReferenceError, which must not escape into FreeCAD.
+        try:
+            if viewProviderObject.TypeId == 'Gui::ViewProviderPythonFeature':
+                print('slotDeletedObject')
+                print('Object delete: ', viewProviderObject.Object.Name)
+                # If method exist invoke it
+                if hasattr(viewProviderObject.Object.Proxy, 'onDelete'):
+                    viewProviderObject.Object.Proxy.onDelete()
+        except (ReferenceError, RuntimeError, AttributeError):
+            pass
+
+    def slotDeletedDocument(self, document):
+        # Scheme MDI windows are Qt widgets owned by the main window, not
+        # by the document: when the document closes nothing else destroys
+        # them, and a stale window keeps repainting the deleted object
+        # (one traceback per repaint, symbol commands failing on the dead
+        # sheet). Close them synchronously — a deferred close could still
+        # lose the race against a pending paint of the deleted items.
+        try:
+            from Schematics.Features.Utils.MDI import closeSchemeWindowsOfDocument
+            n = closeSchemeWindowsOfDocument(document)
+            print(f"slotDeletedDocument: closed {n} scheme window(s)")
+        except Exception as e:
+            print(f"closeSchemeWindowsOfDocument failed: {e}")
 
     def slotCreatedObject(self, viewProviderObject):
         if viewProviderObject.TypeId == 'Gui::ViewProviderPythonFeature':
@@ -122,6 +145,10 @@ class SelObserver:
             obj.Proxy.setSelected(False)
 
     def clearSelection(self, doc):
+        # ActiveDocument is None while no document is open (e.g. right
+        # after the last one was closed).
+        if FreeCAD.ActiveDocument is None:
+            return
         for x in FreeCAD.ActiveDocument.RootObjects:
             if hasattr(x, 'Elements'):  # obj.Proxy.__class__.__name__=='SchemeFeature'
                 x.Proxy.clearSelection()
