@@ -42,10 +42,12 @@ Also, is possible to change position and rotation of symbol by context menu or f
 ### Draw wires
 
 Press the wire button <img src="Icons/Toolbars/DrawWireMode.svg" title="Draw wire" width="24"/> and left-click on the sheet
-to place vertices; the ends snap to symbol pins when close enough. Double-click or press Enter to finish, Escape or
-right-click to cancel. Wires are first-class document objects: they are saved with the file, appear in the tree, can be
-selected, moved and deleted like any other element, and carry a `WireType` (Power, Control, Hydraulic, Pneumatic, Signal)
-plus per-wire stroke style (StrokeWidth / StrokeDash) in the property tab.
+to place vertices. Segments follow KiCad's posture: the rubber line snaps to horizontal, vertical and 45° directions
+from the previous vertex, while wire ends snap to symbol pins when close enough. Clicking a pin or another wire
+**completes the wire there and keeps the tool armed** - the next click starts a new wire (double-click or Enter also
+finish; Escape or right-click exits the tool). Wires are first-class document objects: they are saved with the file,
+appear in the tree, can be selected, moved and deleted like any other element, and carry a `WireType` (Power, Control,
+Hydraulic, Pneumatic, Signal) plus per-wire stroke style (StrokeWidth / StrokeDash) in the property tab.
 
 ### Designators and values
 
@@ -227,11 +229,28 @@ scheme window is active. FreeCAD's shortcut manager still allows rebinding them.
 Keys for features that do not exist yet (junction `J`, labels `L`, no-connect `Q`,
 properties dialog `E`, cursor-follow move `M`) are deliberately not bound.
 
+### Testing
+
 * `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
-* Type check: `python -m mypy Init.py InitGui.py SCUtils.py Schematics verify_freecad.py verify_imports.py` — must stay clean.
-* Lint: `ruff check .` — rules are pinned in `pyproject.toml` (ruff's defaults have broadened across releases).
-* Editor language servers: `pyrightconfig.json` points basedpyright at `./.venv` (Python 3.11, FreeCAD/PySide6 stubs),
-  `typings/` supplies a stub for FreeCAD's bundled `pivy` module, and `.zed/settings.json` keeps Zed's default servers
-  while disabling save-time reformatting. Diagnostics mirror mypy's leniency on purpose: remaining
-  `reportAttributeAccessIssue` warnings mark legacy dynamic FreeCAD-property access, not known bugs.
-* End-to-end: `FreeCAD.exe verify_freecad.py` (15 steps) and `FreeCADCmd.exe verify_imports.py`.
+* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (28 steps): commands, dialogs, save/reload
+  persistence, hotkey registration, reports and the wire-drawing state machine. It writes
+  `_fc_verify.log`; a good run ends with `RESULT: 28 PASS / 0 FAIL` and exit code 0.
+* `FreeCADCmd.exe verify_imports.py` - module import smoke test (31 modules).
+* Known gotcha: verify steps must **not** call `deleteLater()` on dialogs - a pending deferred
+  delete races the script's hard `os._exit(0)` and trips a GILState fatal (exit 127). Steps use
+  plain scope-exit destruction instead; the chooser step documents this in place.
+
+### Typing
+
+* New code is fully typed; every file touched gets its signatures annotated incrementally
+  (parameters and returns) without behaviour changes.
+* `python -m mypy Init.py InitGui.py SCUtils.py Schematics verify_freecad.py verify_imports.py`
+is the gate: **0 errors required** before any commit.
+* `ruff check .` - rules are pinned in `pyproject.toml` (ruff's defaults broadened across
+  releases, so pinning keeps command-line and editor runs identical).
+* Editor language servers: `pyrightconfig.json` points basedpyright at `./.venv` (Python 3.11,
+  FreeCAD/PySide6 stubs), `typings/` supplies a stub for FreeCAD's bundled `pivy` module, and
+  `.zed/settings.json` keeps Zed's default servers while disabling save-time reformatting.
+  Goal is **0 basedpyright errors**; `reportAttributeAccessIssue` stays at warning level to
+  mark legacy dynamic FreeCAD-property access without blocking - those warnings are known,
+  not bugs.

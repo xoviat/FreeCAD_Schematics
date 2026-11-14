@@ -417,6 +417,46 @@ def t_wire_visuals():
     FreeCAD.ActiveDocument.recompute()
 step("junction dots + conductor classes", t_wire_visuals)
 
+def t_wire_draw_ux():
+    from PySide6 import QtCore
+    from Schematics.Features.Utils.Snap import constrainAngle
+
+    # KiCad posture: nearest of horizontal / vertical / 45 degrees
+    origin = QtCore.QPointF(0, 0)
+    assert constrainAngle(origin, QtCore.QPointF(10, 3)) == QtCore.QPointF(10, 0)
+    assert constrainAngle(origin, QtCore.QPointF(3, 10)) == QtCore.QPointF(0, 10)
+    assert constrainAngle(origin, QtCore.QPointF(8, 8)) == QtCore.QPointF(8, 8)
+    assert constrainAngle(origin, QtCore.QPointF(-6, 2)) == QtCore.QPointF(-6, 0)
+
+    scene = sheet.Proxy.scene
+    # resolver: a pin wins over posture; posture otherwise (then grid)
+    from Schematics.Features.Utils.Connectivity import pinPositions
+    pins = pinPositions(sheet)
+    some_pin = next(iter(pins.values()))
+    resolved = scene._resolveWirePoint(
+        QtCore.QPointF(some_pin.x() + 0.4, some_pin.y() + 0.4),
+        QtCore.QPointF(0, 0),
+    )
+    assert resolved == some_pin, (resolved, some_pin)
+    posted = scene._resolveWirePoint(QtCore.QPointF(50, 52), QtCore.QPointF(50, 40))
+    assert posted.x() == 50.0, posted   # vertical posture survives grid snap
+
+    # finish keeps the tool armed; cancel exits (KiCad's flow)
+    before = len([o for o in FreeCAD.ActiveDocument.Objects
+                  if getattr(o, "Type", "") == "Wire"])
+    scene.startWireDraw()
+    assert scene.drawingWire is True
+    scene.wirePoints = [QtCore.QPointF(0, 0), QtCore.QPointF(10, 0)]
+    scene.finishWireDraw()
+    assert scene.drawingWire is True, "finish must keep the wire tool armed"
+    assert scene.wirePoints == [], scene.wirePoints
+    after = len([o for o in FreeCAD.ActiveDocument.Objects
+                 if getattr(o, "Type", "") == "Wire"])
+    assert after == before + 1, (before, after)
+    scene.cancelWireDraw()
+    assert scene.drawingWire is False
+step("wire drawing UX (posture + finish-on-connection)", t_wire_draw_ux)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
@@ -517,11 +557,11 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 8, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 9, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
-    assert len(wires) == 3, "wires did not survive save/load: %r" % wires
+    assert len(wires) == 4, "wires did not survive save/load: %r" % wires
     assert len(wires[0].Points) == 3, "wire points lost: %r" % wires[0].Points
     assert wires[0].Proxy.item is not None, "wire item not rebuilt after reload"
 step("reload + onDocumentRestored", t_reload)

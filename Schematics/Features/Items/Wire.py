@@ -286,6 +286,9 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
             pen = getattr(self.obj.ViewObject.Proxy, "pen", None) \
                 or QtGui.QPen(color, 0.5)
             pen.setColor(color)
+            if pen.capStyle() == QtCore.Qt.PenCapStyle.FlatCap:
+                # Softer wire ends (KiCad-like); user-set caps are kept
+                pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
             if (
                 wire_type in DASHED_WIRE_TYPES
                 and pen.style() == QtCore.Qt.PenStyle.SolidLine

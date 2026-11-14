@@ -11,7 +11,7 @@ import math
 from typing import Any
 
 from PySide6 import QtGui, QtCore, QtWidgets
-from Schematics.Features.Utils.Snap import snap
+from Schematics.Features.Utils.Snap import constrainAngle, snap
 from Schematics.Features.Utils.Sheets import pageIndex
 from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.SchemeContextMenu import ContextMenu
@@ -204,7 +204,10 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
             for p in self.wirePoints[1:]:
                 path.lineTo(p)
             if self.mouseCurPos is not None:
-                path.lineTo(self.mouseCurPos)
+                # Rubber segment with the same posture/pin resolution the
+                # click will use, so the preview shows the exact landing.
+                last = self.wirePoints[-1]
+                path.lineTo(self._resolveWirePoint(self.mouseCurPos, last))
             g.drawPath(path)
             for p in self.wirePoints:
                 g.drawEllipse(p, 2.0, 2.0)
@@ -254,7 +257,15 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         if self.drawingWire:
             if event.button() == QtCore.Qt.MouseButton.LeftButton:
-                self.wireAppendPoint(event.scenePos())
+                pos = event.scenePos()
+                if self.wirePoints and self._isConnectionPoint(pos):
+                    # KiCad: clicking a pin or another wire completes the
+                    # wire there - and the tool stays armed so the next
+                    # click starts a new one.
+                    if self.wireAppendPoint(pos):
+                        self.finishWireDraw()
+                else:
+                    self.wireAppendPoint(pos)
                 event.accept()
                 return
             if event.button() == QtCore.Qt.MouseButton.RightButton:
@@ -380,8 +391,9 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         self.update()
 
     def finishWireDraw(self) -> None:
+        """Complete the current wire; the tool stays armed so the next click
+        starts a new one (KiCad behaviour). Escape or right-click exits."""
         points = list(self.wirePoints)
-        self.drawingWire = False
         self.wirePoints = []
         self.update()
         if len(points) < 2:
@@ -424,9 +436,38 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                     best = scenePos
         return best
 
-    def wireAppendPoint(self, pos: QtCore.QPointF) -> None:
-        """Append the next wire vertex: snap to a pin if one is close, else
-        snap to the grid."""
-        pin = self.nearestWirePin(pos)
-        self.wirePoints.append(pin if pin is not None else snap(pos, self.obj))
+    def wireAppendPoint(self, pos: QtCore.QPointF) -> bool:
+        """Append the next wire vertex through _resolveWirePoint; returns
+        False when the point duplicates the previous one (ignored)."""
+        last = self.wirePoints[-1] if self.wirePoints else None
+        point = self._resolveWirePoint(pos, last)
+        if last is not None and math.hypot(
+            point.x() - last.x(), point.y() - last.y()
+        ) < 0.25:
+            return False
+        self.wirePoints.append(point)
         self.update()
+        return True
+
+    def _resolveWirePoint(
+        self,
+        pos: QtCore.QPointF,
+        last: QtCore.QPointF | None,
+    ) -> QtCore.QPointF:
+        """Where a wire click lands: pins win (connections beat posture),
+        otherwise KiCad-style H/V/45-degree posture from the previous
+        vertex, then grid snap."""
+        pin = self.nearestWirePin(pos)
+        if pin is not None:
+            return pin
+        if last is None:
+            return snap(pos, self.obj)
+        return snap(constrainAngle(last, pos), self.obj)
+
+    def _isConnectionPoint(self, pos: QtCore.QPointF) -> bool:
+        """True when pos sits on a symbol pin or on an existing wire - the
+        places where a click should complete the wire being drawn."""
+        if self.nearestWirePin(pos) is not None:
+            return True
+        from Schematics.Features.Utils.Connectivity import onWireBody
+        return onWireBody(self.obj, pos)

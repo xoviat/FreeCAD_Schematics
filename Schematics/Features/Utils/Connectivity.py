@@ -349,6 +349,19 @@ def junctionPoints(sheet: Any, wire: Any) -> list[QtCore.QPointF]:
     return dots
 
 
+def onWireBody(sheet: Any, pos: QtCore.QPointF, tol: float | None = None) -> bool:
+    """True when pos lies on any wire - endpoints and body alike (the
+    places where a drawn wire should terminate, KiCad-style)."""
+    if tol is None:
+        tol = connectionTolerance(sheet)
+    for wire in _wires(sheet):
+        line = _wirePolyline(sheet, wire)
+        for i in range(len(line) - 1):
+            if _pointSegmentDistance(pos, line[i], line[i + 1]) <= tol:
+                return True
+    return False
+
+
 def connectionReport(sheet: Any) -> str:
     """Human-readable check result (empty problems = success line)."""
     labels: dict[str, str] = {}
