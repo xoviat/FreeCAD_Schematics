@@ -181,6 +181,31 @@ class SCComponentList:
 
 addCommand('SCComponentList', SCComponentList())
 
+
+class SCCheckConnections:
+    """ Check pins and wire ends (geometric ERC-lite) """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('CheckConnections.svg'),
+            'MenuText': "Check connections",
+            'ToolTip': "List pins without wires and wire ends floating in "
+                       "space (geometric connection check)",
+        }
+
+    def Activated(self) -> None:
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return
+        from Schematics.Features.Dialogs.ConnectionCheck import openConnectionCheck
+        openConnectionCheck(scheme, parent=FreeCAD.Gui.getMainWindow())
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCCheckConnections', SCCheckConnections())
+
 class PrimitiveCommand:
     """ Add primitive """
 

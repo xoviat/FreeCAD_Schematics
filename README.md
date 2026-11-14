@@ -56,6 +56,14 @@ The **Annotate sheet** command fills any remaining empty designators without col
 The designator is drawn above the symbol and the value below it; the value stays hidden
 while it equals the library name, exactly like KiCad's default fields.
 
+### Check connections
+
+**Check connections** runs a geometric ERC-lite: pins with no wire endpoint and wire ends
+resting on neither a pin nor another wire. Connections are matched with the same tolerance
+the wire tool snaps with, resolved through the item transforms (rotation-safe). Electrical
+pin types and net names are not modelled yet - this checks that the drawing is wired, not
+that it is electrically legal.
+
 ### Print and PDF
 
 **File → Print / Print preview** (Ctrl+P) renders the sheet exactly as drawn - page size and

@@ -242,6 +242,45 @@ def t_print_pdf():
         shutil.rmtree(tmp, ignore_errors=True)
 step("PDF export (QPdfWriter)", t_print_pdf)
 
+def t_connectivity():
+    from Schematics.Features.Dialogs.ConnectionCheck import ConnectionCheckDialog
+    from Schematics.Features.Utils.Connectivity import (
+        connections,
+        connectionReport,
+        danglingEnds,
+        pinPositions,
+        unwiredPins,
+    )
+
+    pins = pinPositions(sheet)
+    # two resistors, two pins each
+    assert len(pins) >= 4, pins
+    # the pre-existing test wire floats in space: everything unwired
+    assert len(unwiredPins(sheet)) >= 4, unwiredPins(sheet)
+    assert len(danglingEnds(sheet)) >= 1, danglingEnds(sheet)
+
+    # wire R1's two pins together: both ends connect, pins become wired
+    r1 = [o for o in FreeCAD.ActiveDocument.Objects
+          if getattr(o, "Designator", "") == "R1"][0]
+    r1pins = [pos for (name, _pin), pos in pins.items() if name == r1.Name]
+    assert len(r1pins) == 2, r1pins
+    __main__.Schematics.Wire(
+        [(r1pins[0].x(), r1pins[0].y()), (r1pins[1].x(), r1pins[1].y())], sheet
+    )
+    conns = connections(sheet)
+    assert len(conns) >= 2, conns
+    assert all(c.symbol == r1.Name for c in conns), conns
+    remaining = unwiredPins(sheet)
+    assert len(remaining) == len(pins) - 2, (len(pins), remaining)
+    # R1's own ends are on pins now; only the old wire still floats
+    assert len(danglingEnds(sheet)) >= 1
+
+    report = connectionReport(sheet)
+    assert "not connected" in report and "floating" in report, report
+    dialog = ConnectionCheckDialog(report)
+    dialog.close()   # no deleteLater: races the hard os._exit()
+step("connectivity model + connection check", t_connectivity)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
@@ -342,11 +381,11 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 6, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 7, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
-    assert len(wires) == 1, "wire did not survive save/load: %r" % wires
+    assert len(wires) == 2, "wires did not survive save/load: %r" % wires
     assert len(wires[0].Points) == 3, "wire points lost: %r" % wires[0].Points
     assert wires[0].Proxy.item is not None, "wire item not rebuilt after reload"
 step("reload + onDocumentRestored", t_reload)
