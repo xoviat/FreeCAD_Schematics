@@ -7,6 +7,8 @@
 #
 ###############################################################################
 
+from typing import Any
+
 from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
@@ -14,14 +16,18 @@ from Schematics.Features.Utils.Snap import snap
 from Schematics.Features.Items.StrokeMixin import *
 
 class Rectangle:
-    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
+    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None) -> Any:
         obj = makeObject(RectangleFeature, RectangleViewProvider, sheet, cls)
         # Honor the documented x/y/width/height parameters (they were accepted
         # but silently dropped). None keeps the interactive draw path unchanged.
-        if x is not None: obj.X = x
-        if y is not None: obj.Y = y
-        if width is not None: obj.Width = width
-        if height is not None: obj.Height = height
+        if x is not None:
+            obj.X = x
+        if y is not None:
+            obj.Y = y
+        if width is not None:
+            obj.Width = width
+        if height is not None:
+            obj.Height = height
         return obj
 
 # ! Do not change name and location of this class
@@ -88,7 +94,8 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
                 path.addRect(rect)
         return path
 
-    def paint(self, g, option, widget):
+    def paint(self, painter, option, widget=None):
+        g = painter   # base stubs name this parameter "painter"
         if not self.isVisible():
             return
         try:
@@ -153,14 +160,18 @@ class RectangleItem(SchemeObjectItem, QtWidgets.QGraphicsRectItem):
                 self.positionUpdated = False
         super().mouseReleaseEvent(event)
 
+    def _trackDrawPos(self, scenePos):
+        """Follow the cursor while drawing (shared by hover and mouse move)."""
+        if self.drawMode:
+            self.curRelPos = snap(scenePos - self.pos(), self.sheet)
+            self.update()   # ! Mandatory
+
     # if all mouse buttons released
     def hoverMoveEvent(self, event):
-        if self.drawMode:
-            self.curRelPos = snap(event.scenePos() - self.pos(), self.sheet)
-            self.update()   # ! Mandatory
+        self._trackDrawPos(event.scenePos())
 
     # if mouse buttons pressed
     def mouseMoveEvent(self, event):
-        self.hoverMoveEvent(event)
+        self._trackDrawPos(event.scenePos())
         super().mouseMoveEvent(event)   # ! Mandatory
         # In other case item is being not movable

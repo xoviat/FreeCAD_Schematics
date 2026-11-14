@@ -17,8 +17,6 @@ It is important to note: if select an object in document treeview, then the wind
 this object located is automatically activates.
 
 Not supported features:
-* It is possible to draw wires, but you will not be able to select, modify or delete them once created. 
-Also, the wires are not written to the file when saving.
 * Printing a drawing is not possible yet.
 * A convenient and fast way to make a copy of an existing sheet is not available yet.
 
@@ -41,6 +39,14 @@ Press button <img src="Icons/Toolbars/NewScheme.svg" title="New scheme" width="2
 
 Activate window with scheme and press symbol button.
 Also, is possible to change position and rotation of symbol by context menu or from property's tab.
+
+### Draw wires
+
+Press the wire button <img src="Icons/Toolbars/DrawWireMode.svg" title="Draw wire" width="24"/> and left-click on the sheet
+to place vertices; the ends snap to symbol pins when close enough. Double-click or press Enter to finish, Escape or
+right-click to cancel. Wires are first-class document objects: they are saved with the file, appear in the tree, can be
+selected, moved and deleted like any other element, and carry a `WireType` (Power, Control, Hydraulic, Pneumatic, Signal)
+plus per-wire stroke style (StrokeWidth / StrokeDash) in the property tab.
 
 ### Delete symbol(s)
 
@@ -136,3 +142,14 @@ sheetData.MinorGridLineColor = (1.00,0.00,0.00) # Red
 sheetData.MinorGridLineStyle = 1 # Solid style
 #END
 ```
+
+# Development
+
+* `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
+* Type check: `python -m mypy Init.py InitGui.py SCUtils.py Schematics verify_freecad.py verify_imports.py` — must stay clean.
+* Lint: `ruff check .` — rules are pinned in `pyproject.toml` (ruff's defaults have broadened across releases).
+* Editor language servers: `pyrightconfig.json` points basedpyright at `./.venv` (Python 3.11, FreeCAD/PySide6 stubs),
+  `typings/` supplies a stub for FreeCAD's bundled `pivy` module, and `.zed/settings.json` keeps Zed's default servers
+  while disabling save-time reformatting. Diagnostics mirror mypy's leniency on purpose: remaining
+  `reportAttributeAccessIssue` warnings mark legacy dynamic FreeCAD-property access, not known bugs.
+* End-to-end: `FreeCAD.exe verify_freecad.py` (15 steps) and `FreeCADCmd.exe verify_imports.py`.

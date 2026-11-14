@@ -140,7 +140,7 @@ class SchemeObjectFeature:
         elif prop == "Tooltip":
             self.item.setToolTip(val)
         elif prop == "Visibility":
-            if val == True:
+            if val:
                 self.item.show()
             else:
                 self.item.hide()
@@ -200,8 +200,7 @@ class SchemeObjectViewProvider:
 
     def onChanged(self, vobj, prop):
         """ Print the name of the property that has changed """
-        val = vobj.getPropertyByName(prop)
-        #FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} onChanged property: {str(prop)}={str(val)} \n")
+        #FreeCAD.Console.PrintMessage(f"{self.__class__.__name__} onChanged property: {str(prop)}={str(vobj.getPropertyByName(prop))} \n")
         self.onViewPropertyChanged(vobj, prop)
 
     def attach(self, vobj):

@@ -7,6 +7,8 @@
 #
 ###############################################################################
 
+from typing import Any
+
 from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
@@ -15,11 +17,13 @@ from Schematics.Features.Items.StrokeMixin import *
 from Schematics.Features.Items.MarkersMixin import *
 
 class Polyline:
-    def __new__(cls, x=None, y=None, sheet=None):
+    def __new__(cls, x=None, y=None, sheet=None) -> Any:
         obj = makeObject(PolylineFeature, PolylineViewProvider, sheet, cls)
         # Honor documented params; None keeps the interactive path unchanged
-        if x is not None: obj.X = x
-        if y is not None: obj.Y = y
+        if x is not None:
+            obj.X = x
+        if y is not None:
+            obj.Y = y
         return obj
 
 # ! Do not change name and location of this class
@@ -96,7 +100,8 @@ class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
         self.path = path
         super().update()
 
-    def paint(self, g, option, widget):
+    def paint(self, painter, option, widget=None):
+        g = painter   # base stubs name this parameter "painter"
         if not self.isVisible():
             return
         try:
@@ -104,7 +109,7 @@ class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
         except ReferenceError:
             return
         # Don't display the selection rect to improve performance
-        if self.drawMode == False:
+        if not self.drawMode:
             self.prepareGeometryChange()
             #self.setPen(QtGui.QPen(QtCore.Qt.black, 0, QtCore.Qt.SolidLine))
             super().paint(g, option, widget)
@@ -167,14 +172,18 @@ class PolylineItem(MarkersItem, SchemeObjectItem, QtWidgets.QGraphicsRectItem):
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 
+    def _trackDrawPos(self, scenePos):
+        """Follow the cursor while drawing (shared by hover and mouse move)."""
+        if self.drawMode:
+            self.curRelPos = snap(scenePos - self.pos(), self.sheet)
+            self.update()   # ! Mandatory
+
     # if all mouse buttons released
     def hoverMoveEvent(self, event):
-        if self.drawMode:
-            self.curRelPos = snap(event.scenePos() - self.pos(), self.sheet)
-            self.update()   # ! Mandatory
+        self._trackDrawPos(event.scenePos())
 
     # if mouse buttons pressed
     def mouseMoveEvent(self, event):
-        self.hoverMoveEvent(event)
+        self._trackDrawPos(event.scenePos())
         super().mouseMoveEvent(event)   # ! Mandatory
         # In other case item is being not movable

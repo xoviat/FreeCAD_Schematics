@@ -8,20 +8,21 @@
 ###############################################################################
 
 from PySide6 import QtGui, QtCore
+from typing import Any
 import math
 
 class MarkersDataProperties:
 
     def __init__(self, obj, type="Unknown"):
-        super().__init__(obj, type)
+        super().__init__(obj, type)  # pyright: ignore[reportCallIssue,reportAttributeAccessIssue]  # cooperative mixin
         pass
 
     def onChanged(self, obj, prop):
-        super().onChanged(obj, prop)
+        super().onChanged(obj, prop)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
         pass
 
     def initItem(self, obj, sheet):
-        super().initItem(obj, sheet)
+        super().initItem(obj, sheet)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
         obj.ViewObject.StartMarkerType = obj.ViewObject.StartMarkerType
         obj.ViewObject.StartMarkerAngle = obj.ViewObject.StartMarkerAngle
         obj.ViewObject.StartMarkerLength = obj.ViewObject.StartMarkerLength
@@ -49,10 +50,10 @@ class MarkersViewProperties:
         vobj.addProperty('App::PropertyAngle', 'EndMarkerAngle', 'Markers', 'Angle of line end marker', 8+16).EndMarkerAngle = 20
         vobj.addProperty('App::PropertyLength', 'EndMarkerLength', 'Markers', 'Length of line end marker', 8+16).EndMarkerLength = "5.0 mm"
         # Middle markers?
-        super().__init__(vobj)
+        super().__init__(vobj)  # pyright: ignore[reportCallIssue,reportAttributeAccessIssue]  # cooperative mixin
 
     def onChanged(self, vobj, prop):
-        super().onChanged(vobj, prop)
+        super().onChanged(vobj, prop)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
 
 '''        
         #val = vobj.getPropertyByName(prop)
@@ -72,6 +73,9 @@ class MarkersViewProperties:
 '''
 
 class MarkersItem:
+    # Mixed into item classes that provide obj (SchemeObjectFeature item)
+    obj: Any
+
 
     def drawMarkers(self, g, sp2, sp1, ep1, ep2):
         t = g.transform()
@@ -82,35 +86,35 @@ class MarkersItem:
     def drawMarker(self, g, p1, p2, isStart):
         if isStart:
             typ = self.obj.ViewObject.StartMarkerType
-            l = self.obj.ViewObject.StartMarkerLength
+            ml = self.obj.ViewObject.StartMarkerLength
             ang = self.obj.ViewObject.StartMarkerAngle
         else:
             typ = self.obj.ViewObject.EndMarkerType
-            l = self.obj.ViewObject.EndMarkerLength
+            ml = self.obj.ViewObject.EndMarkerLength
             ang = self.obj.ViewObject.EndMarkerAngle
         MarkerStyles = self.obj.ViewObject.Proxy.MarkerStyles
         if typ == MarkerStyles[0]:
             return
-        w = math.tan(math.radians(ang/2)) * l
+        w = math.tan(math.radians(ang/2)) * ml
         g.translate(p2.x(), p2.y())
         g.rotate(-QtCore.QLineF(p1, p2).angle()+90)
 
-        fill = QtCore.Qt.black
+        fill = QtCore.Qt.GlobalColor.black
         if typ == MarkerStyles[4]:
-            fill = QtCore.Qt.white
+            fill = QtCore.Qt.GlobalColor.white
         g.setBrush(QtGui.QBrush(fill))
         #g.setPen(QtCore.Qt.NoPen)
 
         if typ == MarkerStyles[1] or typ == MarkerStyles[4]:
-            points = [QtCore.QPointF(w, l), QtCore.QPointF(0.0, 0.0),  QtCore.QPointF(-w, l)]
+            points = [QtCore.QPointF(w, ml), QtCore.QPointF(0.0, 0.0),  QtCore.QPointF(-w, ml)]
             marker = QtGui.QPolygonF(points)
             g.drawPolygon(marker)
         elif typ == MarkerStyles[3]:
-            points = [QtCore.QPointF(w, l), QtCore.QPointF(),  QtCore.QPointF(-w, l), QtCore.QPointF(0.0, l * 0.8)]
+            points = [QtCore.QPointF(w, ml), QtCore.QPointF(),  QtCore.QPointF(-w, ml), QtCore.QPointF(0.0, ml * 0.8)]
             marker = QtGui.QPolygonF(points)
             g.drawPolygon(marker)
         elif typ == MarkerStyles[2]:
-            points = [QtCore.QPointF(w, l), QtCore.QPointF(0.0, 0.0),  QtCore.QPointF(-w, l)]
+            points = [QtCore.QPointF(w, ml), QtCore.QPointF(0.0, 0.0),  QtCore.QPointF(-w, ml)]
             marker = QtGui.QPolygonF(points)
             g.drawPolyline(marker)
 

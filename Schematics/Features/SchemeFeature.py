@@ -40,7 +40,8 @@ class SchemeMDIView(QtWidgets.QMdiSubWindow):
         self.docName = obj.Document.Name
         self.setMouseTracking(True)
 
-    def closeEvent(self, event):
+    def closeEvent(self, closeEvent):
+        event = closeEvent   # base stubs name this parameter "closeEvent"
         #print("Tab is closed")
         # The document object may already be deleted (document closed while
         # the window was open): attribute access then raises ReferenceError
@@ -140,7 +141,7 @@ class SchemeFeature:
             return
 
         if prop == "Visibility":
-            if val == True:
+            if val:
                 self.initWindow(obj)    # Needs to show closed mdi window again
                 FreeCAD.Gui.Selection.removeSelection(obj)  # Remove selection from sheet for comfortabilly work
             else:
@@ -218,7 +219,7 @@ class SchemeFeature:
     def onSelect(self):
         # if Visibility == False this means that the window was closed by the user 
         # and is not in the list of tabs. When the window is highlighted, the tab should be restored.
-        if self.obj.Visibility == False:
+        if not self.obj.Visibility:
             self.obj.Visibility = True
         # Set current active window
         activateSceneTab(self.scene)

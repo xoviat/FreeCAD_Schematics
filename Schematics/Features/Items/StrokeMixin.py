@@ -13,15 +13,15 @@ from Schematics.Features.Utils.QtEnums import *
 class StrokeDataProperties:
 
     def __init__(self, obj, type="Unknown"):
-        super().__init__(obj, type)
+        super().__init__(obj, type)  # pyright: ignore[reportCallIssue,reportAttributeAccessIssue]  # cooperative mixin
         pass
 
     def onChanged(self, obj, prop):
-        super().onChanged(obj, prop)
+        super().onChanged(obj, prop)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
         pass
 
     def initItem(self, obj, sheet):
-        super().initItem(obj, sheet)
+        super().initItem(obj, sheet)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
         obj.ViewObject.StrokeWidth = obj.ViewObject.StrokeWidth
         obj.ViewObject.StrokeDash = obj.ViewObject.StrokeDash
         obj.ViewObject.StrokeCap = obj.ViewObject.StrokeCap
@@ -38,10 +38,10 @@ class StrokeViewProperties:
         vobj.addProperty('App::PropertyEnumeration', 'StrokeJoin', 'Style', 'Stroke join', 8+16).StrokeJoin = list(QtJoinStyles)
         vobj.StrokeJoin = list(QtJoinStyles)[0]   # Default miter cap
         #vobj.addProperty('App::PropertyFloatList', 'StrokeDashPattern', 'Style', 'Stroke dash pattern', 8+16).StrokeDashPattern = [1, 2]
-        super().__init__(vobj)
+        super().__init__(vobj)  # pyright: ignore[reportCallIssue,reportAttributeAccessIssue]  # cooperative mixin
 
     def onChanged(self, vobj, prop):
-        super().onChanged(vobj, prop)
+        super().onChanged(vobj, prop)  # pyright: ignore[reportAttributeAccessIssue]  # cooperative mixin
         #val = vobj.getPropertyByName(prop)
         # Pen recreated only if property's changed
         if prop == "StrokeWidth" or prop == "StrokeDash" or prop == "StrokeCap" or prop == "StrokeJoin":

@@ -1,0 +1,235 @@
+# -*- coding: utf-8 -*-
+###############################################################################
+#
+#  Wire.py - Scheme wire (conductor) item.
+#
+###############################################################################
+"""First-class wire document objects.
+
+A wire is an ``App::FeaturePython`` object like every other sheet element:
+its vertices (``Points``, stored relative to the item position ``X``/``Y``)
+and its ``WireType`` live in the FreeCAD document, so wires survive save
+and load, participate in undo, can be selected on the sheet or in the tree,
+and are deleted through the standard element machinery.
+
+Drawing is interactive (see ``SchemeGraphicsScene.startWireDraw``); the
+item itself is the persistent representation of a finished wire.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+from PySide6 import QtCore, QtGui, QtWidgets
+
+import FreeCAD
+
+from Schematics.Features.Items.SchemeObject import (
+    SchemeObjectFeature,
+    SchemeObjectViewProvider,
+    makeObject,
+)
+from Schematics.Features.Items.SchemeObjectItem import SchemeObjectItem
+from Schematics.Features.Items.StrokeMixin import (
+    StrokeDataProperties,
+    StrokeViewProperties,
+)
+
+#: Conductor classes for machine schematics. Semantic only for now — the
+#: visible line style follows the per-wire Stroke* view properties
+#: (StrokeDash in particular), so a Control wire can be drawn dashed.
+WIRE_TYPES: list[str] = ["Power", "Control", "Hydraulic", "Pneumatic", "Signal"]
+
+PointInput = QtCore.QPointF | tuple[float, float]
+
+
+def _toVector(p: PointInput) -> FreeCAD.Vector:
+    """Normalize a point input to an absolute FreeCAD.Vector (z = 0)."""
+    if isinstance(p, QtCore.QPointF):
+        return FreeCAD.Vector(p.x(), p.y(), 0.0)
+    return FreeCAD.Vector(p[0], p[1], 0.0)
+
+
+class Wire:
+    """Factory: ``Wire(points, sheet, wireType)`` returns the App object.
+
+    ``points`` are absolute sheet coordinates; they are stored relative to
+    the first vertex, which becomes the item position ``X``/``Y``.
+    """
+
+    def __new__(
+        cls,
+        points: Sequence[PointInput] | None = None,
+        sheet: Any = None,
+        wireType: str | None = None,
+    ) -> Any:
+        obj: Any = makeObject(WireFeature, WireViewProvider, sheet, cls)
+        if points is not None and len(points) >= 2:
+            origin: FreeCAD.Vector = _toVector(points[0])
+            obj.Points = [
+                FreeCAD.Vector(v.x - origin.x, v.y - origin.y, 0.0)
+                for v in (_toVector(p) for p in points)
+            ]
+            obj.X = origin.x
+            obj.Y = origin.y
+        if wireType is not None:
+            obj.WireType = wireType
+        return obj
+
+
+# ! Do not change name and location of this class
+# Module path and name of this class will be stored to *.FCStd file in Document.xml
+class WireFeature(StrokeDataProperties, SchemeObjectFeature):
+
+    def initDataPropertyies(self, obj: Any) -> None:
+        obj.addProperty(
+            'App::PropertyVectorList', 'Points', 'Geometry',
+            'Wire vertices relative to the item position', 8 + 16,
+        ).Points = []
+        obj.addProperty(
+            'App::PropertyEnumeration', 'WireType', 'Data',
+            'Conductor class of this wire', 8 + 16,
+        ).WireType = list(WIRE_TYPES)
+        obj.WireType = WIRE_TYPES[0]
+        # Size is derived from Points; wires do not rotate about a center.
+        obj.setPropertyStatus("Width", "ReadOnly")
+        obj.setPropertyStatus("Height", "ReadOnly")
+        obj.setPropertyStatus("Rotation", "ReadOnly")
+
+    def onDataPropertyChanged(self, obj: Any, prop: str) -> None:
+        if prop == "Points":
+            self._updateSize(obj)
+        elif prop == "WireType" and hasattr(self, "item"):
+            self.item.update()
+
+    @staticmethod
+    def _updateSize(obj: Any) -> None:
+        """Width/Height mirror the bounding box of the vertices."""
+        pts = obj.Points
+        if not pts:
+            obj.Width = 0
+            obj.Height = 0
+            return
+        xs: list[float] = [v.x for v in pts]
+        ys: list[float] = [v.y for v in pts]
+        obj.Width = max(xs) - min(xs)
+        obj.Height = max(ys) - min(ys)
+
+    def getItem(self, obj: Any, sheet: Any) -> WireItem:
+        return WireItem(obj, sheet)
+
+    def initRootMethods(self, obj: Any) -> None:
+        pass   # wires have no root-level rendering work (unlike symbols)
+
+
+# ! Do not change name and location of this class
+# Module path and name of this class will be stored to *.FCStd file in GuiDocument.xml
+class WireViewProvider(StrokeViewProperties, SchemeObjectViewProvider):
+
+    def initViewPropertyies(self, vobj: Any) -> None:
+        pass
+
+    def onViewPropertyChanged(self, vobj: Any, prop: str) -> None:
+        pass
+
+
+class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
+    """Persistent polyline: selectable, movable, saved with the document."""
+
+    def __init__(self, obj: Any, sheet: Any) -> None:
+        super().__init__(obj, sheet)
+        # Wires sit under symbols so terminals stay visible on top.
+        self.setZValue(-0.5)
+
+    # ------------------------------------------------------------------
+    # Geometry
+    # ------------------------------------------------------------------
+    def _points(self) -> list[QtCore.QPointF]:
+        """Vertices in item-local coordinates (relative to X/Y)."""
+        try:
+            return [QtCore.QPointF(v.x, v.y) for v in self.obj.Points]
+        except (ReferenceError, AttributeError, RuntimeError):
+            return []   # object deleted or Points not migrated yet
+
+    def _strokeWidth(self) -> float:
+        try:
+            return float(self.obj.ViewObject.StrokeWidth.Value)
+        except (ReferenceError, AttributeError, RuntimeError):
+            return 1.0
+
+    def updateTransform(self) -> None:
+        # Override the base class centering: wires are drawn from their
+        # first vertex, so the item position IS the first vertex.
+        self.setTransform(QtGui.QTransform(), combine=False)
+        self.setTransformOriginPoint(QtCore.QPointF(0, 0))
+
+    def boundingRect(self) -> QtCore.QRectF:
+        if not self.isVisible():
+            return QtCore.QRectF(0, 0, 0, 0)
+        pts = self._points()
+        if len(pts) < 2:
+            return QtCore.QRectF(0, 0, 0, 0)
+        xs: list[float] = [p.x() for p in pts]
+        ys: list[float] = [p.y() for p in pts]
+        m: float = self._strokeWidth() / 2.0 + 3.0   # stroke + anchor markers
+        return QtCore.QRectF(
+            min(xs) - m, min(ys) - m,
+            (max(xs) - min(xs)) + 2 * m, (max(ys) - min(ys)) + 2 * m,
+        )
+
+    def shape(self) -> QtGui.QPainterPath:
+        path = QtGui.QPainterPath()
+        pts = self._points()
+        if len(pts) < 2:
+            return path
+        path.moveTo(pts[0])
+        for p in pts[1:]:
+            path.lineTo(p)
+        stroker = QtGui.QPainterPathStroker()
+        stroker.setWidth(self._strokeWidth() + 4.0)   # generous grab band
+        return stroker.createStroke(path)
+
+    # ------------------------------------------------------------------
+    # Painting
+    # ------------------------------------------------------------------
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionGraphicsItem,
+        widget: QtWidgets.QWidget | None = None,
+    ) -> None:
+        g = painter   # base stubs name this parameter "painter"
+        if not self.isVisible():
+            return
+        try:
+            self.obj.Name   # liveness probe: object may be deleted
+        except ReferenceError:
+            return
+        pts = self._points()
+        if len(pts) < 2:
+            return
+        g.save()
+        g.beginNativePainting()
+        g.setRenderHints(QtGui.QPainter.RenderHint.Antialiasing)
+        g.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+
+        color: Any = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
+        if self.isSelected():
+            color = QtCore.Qt.GlobalColor.green
+        pen: QtGui.QPen = getattr(self.obj.ViewObject.Proxy, "pen", None) \
+            or QtGui.QPen(color, 0.5)
+        pen.setColor(color)
+        g.setPen(pen)
+
+        path = QtGui.QPainterPath(pts[0])
+        for p in pts[1:]:
+            path.lineTo(p)
+        g.drawPath(path)
+
+        if self.isSelected():
+            for p in pts:
+                self.drawAnchor(g, p.x(), p.y())
+
+        g.endNativePainting()
+        g.restore()

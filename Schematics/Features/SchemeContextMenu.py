@@ -19,9 +19,18 @@ class ContextMenu(QtWidgets.QMenu):
         self.contextMenuScenePos = None
 
     def addActionExt(self, text, parent, func, enabled=True):
-        # PySide6: QAction moved from QtWidgets to QtGui
-        action = QtGui.QAction(text, parent, triggered=func)
+        # PySide6: QAction moved from QtWidgets to QtGui; the
+        # (text, parent, triggered=...) constructor overload is not in the
+        # PySide6 stubs, so connect the signal explicitly.
+        action = QtGui.QAction(text, parent)
+        action.triggered.connect(func)
         action.setEnabled(enabled)
+        self.addAction(action)
+
+    def _addAction(self, text, func):
+        """Add a QAction wired to func (stub-clean PySide6 form)."""
+        action = QtGui.QAction(text, self)
+        action.triggered.connect(func)
         self.addAction(action)
 
     def addStandartActions(self):
@@ -31,14 +40,13 @@ class ContextMenu(QtWidgets.QMenu):
         if len(FreeCAD.Gui.Selection.getSelection()) > 0:
             somethingSelected = True
         self.addActionExt('Copy', self, self.copy, somethingSelected)
-        self.addAction(QtGui.QAction('Paste', self, triggered=self.paste))
+        self._addAction('Paste', self.paste)
         self.addSeparator()
-        self.addAction(QtGui.QAction('Paste to the same place', self, triggered=self.pasteAtSamePlace))
+        self._addAction('Paste to the same place', self.pasteAtSamePlace)
         self.addActionExt('Duplicate this sheet', self, self.duplicateSheet, False)
-        action = QtGui.QAction('Duplicate this sheet', self, triggered=self.duplicateSheet)
         if somethingSelected:
-            self.addAction(QtGui.QAction('Turn Right +90°', self, triggered=self.turnRight))
-            self.addAction(QtGui.QAction('Turn Left -90°', self, triggered=self.turnLeft))
+            self._addAction('Turn Right +90°', self.turnRight)
+            self._addAction('Turn Left -90°', self.turnLeft)
         #contextMenu.hideEvent = self.contextMenuClosed
         # Remove item command?
 

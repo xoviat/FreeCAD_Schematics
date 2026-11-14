@@ -7,6 +7,8 @@
 #
 ###############################################################################
 
+from typing import Any
+
 from PySide6 import QtGui, QtCore, QtSvg, QtSvgWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
@@ -15,11 +17,20 @@ from Schematics.Features.Utils.SVGSymbolsCache import loadSVGSymbol
 from Schematics.Features.Utils.QtEnums import *
 
 class Symbol:
-    def __new__(cls, x=None, y=None, sheet=None):
+    # Set by PrimitiveCommand before StartDraw(); declared class-level so
+    # assignments like inst.typ = name type-check (the factory runs on the
+    # class, not an instance).
+    typ: str | None = None
+    grp: str | None = None
+    std: str | None = None
+
+    def __new__(cls, x=None, y=None, sheet=None) -> Any:
         obj = makeObject(SymbolFeature, SymbolViewProvider, sheet, cls, typ=cls.typ, grp=cls.grp, std=cls.std)
         # Honor documented params; None keeps the interactive path unchanged
-        if x is not None: obj.X = x
-        if y is not None: obj.Y = y
+        if x is not None:
+            obj.X = x
+        if y is not None:
+            obj.Y = y
         return obj
 
 # ! Do not change name and location of this class
@@ -109,18 +120,22 @@ class SymbolItem(SchemeObjectItem, QtSvgWidgets.QGraphicsSvgItem):
         super().mousePressEvent(event)   # ! Mandatory
         # In other case selection invoked only after RMB released
 
-    # if all mouse buttons released
-    def hoverMoveEvent(self, event):
+    def _trackDrawPos(self, scenePos):
+        """Follow the cursor while drawing (shared by hover and mouse move)."""
         if self.drawMode:
-            self.curRelPos = snap(event.scenePos(), self.sheet)
+            self.curRelPos = snap(scenePos, self.sheet)
             self.setPos(self.curRelPos)
             #self.obj.X = self.curRelPos.x()
             #self.obj.Y = self.curRelPos.y()
             #self.update()   # ! Mandatory
 
+    # if all mouse buttons released
+    def hoverMoveEvent(self, event):
+        self._trackDrawPos(event.scenePos())
+
     # if mouse buttons pressed
     def mouseMoveEvent(self, event):
-        self.hoverMoveEvent(event)
+        self._trackDrawPos(event.scenePos())
         super().mouseMoveEvent(event)   # ! Mandatory
         # In other case item is being not movable
 
@@ -130,6 +145,8 @@ class SymbolItem(SchemeObjectItem, QtSvgWidgets.QGraphicsSvgItem):
         center = self.renderer().viewBoxF().center()
         tr = QtGui.QTransform().rotate(r).translate(-center.x(), -center.y())
         self.pinsXY = []
+        if not self.pins:
+            return
         for pin in self.pins:
             name, px, py = pin
             rp = tr.map(QtCore.QPointF(px, py))

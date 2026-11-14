@@ -33,7 +33,7 @@ class CursorItemMixin:
     def enterEvent(self, event):
         if self.underCursorItem is not None:
             # Qt6: QEnterEvent carries a QPointF position
-            self.underCursorItem.mousePos(self.mapToScene(event.position().toPoint()))
+            self.underCursorItem.mousePos(self.mapToScene(event.position().toPoint()))  # pyright: ignore[reportAttributeAccessIssue]  # mixin: QGraphicsView supplies mapToScene
             self.underCursorItem.show()
 
     def leaveEvent(self, event):
@@ -46,19 +46,21 @@ class CursorSymbolItem(QtSvgWidgets.QGraphicsSvgItem):
         super().__init__()
         self.fulltyp = std+"\\"+grp+"\\"+typ
         self.sheet = sheet
-        self.setFlags(QtWidgets.QGraphicsItem.GraphicsItemFlags(0))
+        self.setFlags(QtWidgets.QGraphicsItem.GraphicsItemFlag(0))
         # ! Store renderer to self. in other case Access memory violation will occur
         self.rerender()
         self.setAnchor()
         self.setAcceptHoverEvents(True)
 
     def rerender(self):
-        self.renderer = QtSvg.QSvgRenderer()
-        self.renderer.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
+        # Named irenderer: QGraphicsSvgItem already has a renderer() method
+        # (shadowing it confused the type checker and read back the method).
+        self.irenderer = QtSvg.QSvgRenderer()
+        self.irenderer.setAspectRatioMode(QtCore.Qt.AspectRatioMode.KeepAspectRatio)
         data, pins = loadSVGSymbol(self.fulltyp)
         data = self.sheet.Proxy.appearance.decode(data)
-        self.renderer.load(data.encode())
-        self.setSharedRenderer(self.renderer)
+        self.irenderer.load(data.encode())
+        self.setSharedRenderer(self.irenderer)
 
     def setAnchor(self):
         center = super().boundingRect().center()

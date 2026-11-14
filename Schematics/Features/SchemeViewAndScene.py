@@ -8,7 +8,10 @@
 ###############################################################################
 
 import math
+from typing import Any
+
 from PySide6 import QtGui, QtCore, QtWidgets
+from Schematics.Features.Utils.Snap import snap
 from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.SchemeContextMenu import ContextMenu
 from Schematics.Features.Items.SchemeObject import *
@@ -16,27 +19,35 @@ from Schematics.Features.CursorItemMixin import *
 
 class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         #self.setBackgroundBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
         self.setDragMode(QtWidgets.QGraphicsView.DragMode.RubberBandDrag) #ScrollHandDrag)
         self.setMouseTracking(True)
-        self.setCacheMode(QtWidgets.QGraphicsView.CacheMode.CacheBackground)
-        self.dragMode = False
+        self.setCacheMode(QtWidgets.QGraphicsView.CacheModeFlag.CacheBackground)
+        self.panning = False
         self.instance = None
         self.currentObj = None
 
-    def getScale(self):
+    def getScale(self) -> float:
         t = self.transform()
         scalex = math.sqrt(t.m11() * t.m11() + t.m12() * t.m12())
         scaley = math.sqrt(t.m21() * t.m21() + t.m22() * t.m22())
         scale = (scalex+scaley)/2
         return scale
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        # While drawing a wire the right button cancels instead of opening
+        # the context menu (this view sees the event before the scene).
+        if event.button() == QtCore.Qt.MouseButton.RightButton:
+            sc = self.scene()
+            if isinstance(sc, SchemeGraphicsScene) and sc.drawingWire:
+                sc.cancelWireDraw()
+                event.accept()
+                return
         # Update on left click (selection/deselection)
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if self.instance is not None:
                 if self.currentObj is not None and self.currentObj.Proxy.item.drawMode is True:
                     pass
@@ -45,14 +56,14 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
             self.scene().update()
         # ! call super().mousePressEvent only after object is create
         super().mousePressEvent(event)
-        if event.button() == QtCore.Qt.MiddleButton:
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
             # rubber mode of
             self.sceneCenter = self.mapToScene(self.viewport().rect().center())
             # Qt6: QMouseEvent.localPos() is deprecated in favor of position()
             self.startPos = event.position()
-            self.dragMode = True
-            self.viewport().setCursor(QtCore.Qt.ClosedHandCursor)
-        if event.button() == QtCore.Qt.RightButton:
+            self.panning = True
+            self.viewport().setCursor(QtCore.Qt.CursorShape.ClosedHandCursor)
+        if event.button() == QtCore.Qt.MouseButton.RightButton:
             self.viewport().unsetCursor()
             if self.instance is not None and self.currentObj is not None:
                 if self.currentObj.Proxy.item.doNotResetInstance:
@@ -67,35 +78,36 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
                 # Qt6: globalPos() is deprecated in favor of globalPosition()
                 contextMenu.invokeAt(event.globalPosition().toPoint())
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == QtCore.Qt.MiddleButton:
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
             # rubber mode on
-            self.dragMode = False
+            self.panning = False
             self.viewport().unsetCursor() #QtCore.Qt.ArrowCursor)
         super().mouseReleaseEvent(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         #print(f"mmove event {event.position()}, {self.mapToScene(event.pos())}")
         if self.underCursorItem is not None:
             self.underCursorItem.mousePos(self.mapToScene(event.pos()))
-        overItem = self.itemAt(event.position().toPoint())
+        overItem: Any = self.itemAt(event.position().toPoint())
         #if hasattr(overItem, "drawMode") and overItem.drawMode:
-        if self.instance is not None:
-            self.viewport().setCursor(QtCore.Qt.CrossCursor)
+        sc = self.scene()
+        if self.instance is not None or (isinstance(sc, SchemeGraphicsScene) and sc.drawingWire):
+            self.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor)
         else:
             if overItem is not None and (overItem.flags() & QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable):
                 self.viewport().setCursor(overItem.getCursor())
             else:
-                self.viewport().setCursor(QtCore.Qt.ArrowCursor)
+                self.viewport().setCursor(QtCore.Qt.CursorShape.ArrowCursor)
 
-        if self.dragMode:
-            self.centerOn(self.sceneCenter + (self.startPos - event.position()) / self.getScale())
+        if self.panning:
+            self.centerOn(self.sceneCenter + (self.startPos - event.position()) * (1.0 / self.getScale()))
         super().mouseMoveEvent(event)
 
-    def zoom(self, factor):
+    def zoom(self, factor: float) -> None:
         self.scale(factor, factor)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         # print("mwheel event", event)
         if event.angleDelta().y() > 0:
             self.zoom(1.25)
@@ -106,17 +118,21 @@ class SchemeGraphicsView(CursorItemMixin, QtWidgets.QGraphicsView):
 
 class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
     
-    def __init__(self, obj):
+    def __init__(self, obj: Any) -> None:
         super().__init__()
         self.obj = obj
         self.vobj = obj.ViewObject
-        self.mouseCurPos = None
-        self.points = []
+        self.mouseCurPos: QtCore.QPointF | None = None
+        self.points: list[Any] = []
+        # Interactive wire drawing state (startWireDraw / finishWireDraw)
+        self.drawingWire: bool = False
+        self.wirePoints: list[QtCore.QPointF] = []
 
     #def drawBackground(self, g, rect):
     #   print("drawBackground")
 
-    def drawForeground(self, g, rect):
+    def drawForeground(self, painter: QtGui.QPainter, rect: QtCore.QRectF | QtCore.QRect) -> None:
+        g = painter   # base stubs name this parameter "painter"
         ### g.drawText(50, 50, str(len(self.items())))
 
         # ! Do not paint anything while the file is loading.
@@ -139,11 +155,11 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
 
             minorBrush = QtGui.QColor.fromRgbF(*self.vobj.MinorGridLineColor)
             minorPen = QtGui.QPen(minorBrush, self.vobj.MinorGridLineWidth.Value,
-                QtLineStyles[self.vobj.MinorGridLineStyle], QtCore.Qt.FlatCap, QtCore.Qt.RoundJoin)
+                QtLineStyles[self.vobj.MinorGridLineStyle], QtCore.Qt.PenCapStyle.FlatCap, QtCore.Qt.PenJoinStyle.RoundJoin)
 
             majorBrush = QtGui.QColor.fromRgbF(*self.vobj.MajorGridLineColor)
             majorPen = QtGui.QPen(majorBrush, self.vobj.MajorGridLineWidth.Value,
-                QtLineStyles[self.vobj.MajorGridLineStyle], QtCore.Qt.SquareCap, QtCore.Qt.RoundJoin)
+                QtLineStyles[self.vobj.MajorGridLineStyle], QtCore.Qt.PenCapStyle.SquareCap, QtCore.Qt.PenJoinStyle.RoundJoin)
 
             g.setPen(minorPen)
 
@@ -177,7 +193,22 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                         g.drawLine(QtCore.QPointF(0, yd), QtCore.QPointF(sheetWidth, yd))
                 i += 1
 
-    def retireStaleWindow(self):
+        # Wire drawing preview: committed vertices + rubber line to cursor
+        if self.drawingWire and self.wirePoints:
+            pen = QtGui.QPen(QtGui.QColor.fromRgbF(*self.obj.LinesColor), 1.0)
+            pen.setCosmetic(True)
+            g.setPen(pen)
+            g.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+            path = QtGui.QPainterPath(self.wirePoints[0])
+            for p in self.wirePoints[1:]:
+                path.lineTo(p)
+            if self.mouseCurPos is not None:
+                path.lineTo(self.mouseCurPos)
+            g.drawPath(path)
+            for p in self.wirePoints:
+                g.drawEllipse(p, 2.0, 2.0)
+
+    def retireStaleWindow(self) -> None:
         """ Close the MDI window bound to a deleted document object.
 
         Deferred with a zero timer because this is called from inside a
@@ -200,28 +231,62 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
 
         QtCore.QTimer.singleShot(0, _close)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        if self.drawingWire:
+            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                self.wireAppendPoint(event.scenePos())
+                event.accept()
+                return
+            if event.button() == QtCore.Qt.MouseButton.RightButton:
+                self.cancelWireDraw()
+                event.accept()
+                return
         super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseDoubleClickEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
+        # Double-click finishes the wire: the second press already appended
+        # the final vertex in mousePressEvent.
+        if self.drawingWire and event.button() == QtCore.Qt.MouseButton.LeftButton:
+            self.finishWireDraw()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        # Enter finishes the wire, Escape cancels it.
+        if self.drawingWire:
+            if event.key() in (QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter):
+                self.finishWireDraw()
+                event.accept()
+                return
+            if event.key() == QtCore.Qt.Key.Key_Escape:
+                self.cancelWireDraw()
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         self.snapItemsToGrid()
         super().mouseReleaseEvent(event)
 
     # This method generate transaction
-    def snapItemsToGrid(self):
+    def snapItemsToGrid(self) -> None:
         # Snap items to grid after it's position is updated
-        items = []
+        items: list[Any] = []
         for item in self.selectedItems():
-            if hasattr(item, "positionUpdated") and item.positionUpdated == True:
+            if hasattr(item, "positionUpdated") and item.positionUpdated:
                 items.append(item)
-        if items != []:
+        if items:
             #itemsStr = " ".join(map(lambda i: i.obj.Name, items))  # List of items (Deprecated)
             name = items[0].obj.Name if len(items) == 1 else str(len(items)) + " Items"
             message = f"Position of {name} is changed"
             # It is necessary to clear the selected elements, 
             # otherwise elements from different sheets may be copied.
             #FreeCAD.Gui.Selection.clearSelection()
-            FreeCAD.ActiveDocument.openTransaction(message)
+            doc = FreeCAD.ActiveDocument
+            if doc is None:
+                return
+            doc.openTransaction(message)
             for item in items:
                 item.positionUpdated = False
                 item.obj.X = item.x()
@@ -229,10 +294,10 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                 #FreeCAD.Gui.doCommand(f'FreeCAD.ActiveDocument.getObject("{item.obj.Name}").X = {item.x()}')
                 #FreeCAD.Gui.doCommand(f'FreeCAD.ActiveDocument.getObject("{item.obj.Name}").Y = {item.y()}')
                 FreeCAD.Gui.Selection.addSelection(item.obj)                
-            FreeCAD.ActiveDocument.commitTransaction()
-            FreeCAD.ActiveDocument.recompute()
+            doc.commitTransaction()
+            doc.recompute()
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         # print(f"{event.scenePos()}")
         self.mouseCurPos = event.scenePos()
         self.update()       # mandatory for draw lines
@@ -241,6 +306,80 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
 #    def wheelEvent(self, event):
 #        super().wheelEvent(event)
  
-    def clear(self):
+    def clear(self) -> None:
         self.points.clear()
+        self.drawingWire = False
+        self.wirePoints.clear()
+        self.update()
+
+    # ------------------------------------------------------------------
+    # Interactive wire drawing
+    # ------------------------------------------------------------------
+    def startWireDraw(self) -> None:
+        """Enter wire drawing mode: click vertices, double-click or Enter to
+        finish, Escape or right-click to cancel."""
+        self.drawingWire = True
+        self.wirePoints = []
+        for view in self.views():
+            if hasattr(view, "instance"):
+                setattr(view, "instance", None)
+                setattr(view, "currentObj", None)
+                setattr(view, "underCursorItem", None)
+        self.update()
+
+    def cancelWireDraw(self) -> None:
+        self.drawingWire = False
+        self.wirePoints = []
+        self.update()
+
+    def finishWireDraw(self) -> None:
+        points = list(self.wirePoints)
+        self.drawingWire = False
+        self.wirePoints = []
+        self.update()
+        if len(points) < 2:
+            return
+        from Schematics.Features.Items.Wire import Wire
+        Wire(points=points, sheet=self.obj)
+
+    def wirePinTolerance(self) -> float:
+        """Snap radius for wire ends: a fraction of the grid spacing."""
+        try:
+            return float(self.vobj.GridSpacing.Value) * 0.6
+        except (ReferenceError, AttributeError, RuntimeError, TypeError):
+            return 3.0
+
+    def nearestWirePin(self, pos: QtCore.QPointF) -> QtCore.QPointF | None:
+        """Scene position of the closest symbol pin within tolerance.
+
+        Pins live on symbol items (``SymbolItem.pins``: (name, x, y) in item
+        local coordinates); mapToScene applies the item transform so rotated
+        symbols snap correctly.
+        """
+        tol = self.wirePinTolerance()
+        best: QtCore.QPointF | None = None
+        bestDist = tol
+        for item in self.items():
+            if getattr(item, "drawMode", False):
+                continue   # preview/cursor item, not a placed symbol
+            pins = getattr(item, "pins", None)
+            if not pins:
+                continue
+            for pin in pins:
+                try:
+                    _name, px, py = pin
+                    scenePos = item.mapToScene(QtCore.QPointF(px, py))
+                except (ReferenceError, RuntimeError, TypeError, ValueError, AttributeError):
+                    continue
+                dist = math.hypot(scenePos.x() - pos.x(), scenePos.y() - pos.y())
+                if dist <= bestDist:
+                    bestDist = dist
+                    best = scenePos
+        return best
+
+    def wireAppendPoint(self, pos: QtCore.QPointF) -> None:
+        """Append the next wire vertex: snap to a pin if one is close, else
+        snap to the grid."""
+        pin = self.nearestWirePin(pos)
+        self.wirePoints.append(pin if pin is not None else snap(pos, self.obj))
         self.update()

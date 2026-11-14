@@ -7,17 +7,23 @@
 #
 ###############################################################################
 
+from typing import Any
+
 from PySide6 import QtGui, QtCore
 from Schematics.Features.Items.Rectangle import *
 
 class Line:
-    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None):
+    def __new__(cls, x=None, y=None, width=None, height=None, sheet=None) -> Any:
         obj = makeObject(LineFeature, LineViewProvider, sheet, cls)
         # Honor documented params; None keeps the interactive path unchanged
-        if x is not None: obj.X = x
-        if y is not None: obj.Y = y
-        if width is not None: obj.Width = width
-        if height is not None: obj.Height = height
+        if x is not None:
+            obj.X = x
+        if y is not None:
+            obj.Y = y
+        if width is not None:
+            obj.Width = width
+        if height is not None:
+            obj.Height = height
         return obj
 
 # ! Do not change name and location of this class

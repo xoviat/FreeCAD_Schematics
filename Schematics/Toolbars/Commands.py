@@ -32,7 +32,7 @@ class SCNewScheme:
         }
 
     def Activated(self):
-        if FreeCAD.ActiveDocument == None:
+        if FreeCAD.ActiveDocument is None:
             FreeCAD.newDocument()
         bp = CreateScheme()
         bp.Template = getTemplatePath('Default.svg')

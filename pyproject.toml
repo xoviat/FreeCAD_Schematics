@@ -1,0 +1,27 @@
+# Tool configuration for the workbench. Not a package: there is no
+# [project]/[build-system] section on purpose (FreeCAD loads workbenches
+# from the Mod directory, see install.py).
+#
+# Ruff config is pinned here so behaviour does not drift with ruff's
+# defaults (they have broadened across releases) and so Zed's bundled
+# ruff LSP picks up the same rules as a command-line run.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+# Core correctness rules only. The legacy workbench style is deliberate:
+# - star imports re-export Qt/FreeCAD names across modules (F401/F403/F405
+#   would flag the re-export chain that other files depend on)
+# - broad excepts are intentional Qt/FreeCAD teardown guards
+select = ["E4", "E7", "E9", "F"]
+ignore = ["F401", "F403", "F405"]
+
+[tool.ruff.lint.per-file-ignores]
+# Imports intentionally below the workbench-registration code: FreeCAD
+# exec()s InitGui with split globals, and the verify scripts boot FreeCAD
+# before importing it. SVGSymbolsCache sets up paths before importing sys.
+"InitGui.py" = ["E402"]
+"verify_freecad.py" = ["E402"]
+"Schematics/Features/Utils/SVGSymbolsCache.py" = ["E402"]

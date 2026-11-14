@@ -54,7 +54,7 @@ class SchemeObjectItem():
         return self.__drawMode
 
     def setmode(self, mode):
-        if mode == True:
+        if mode:
             #self.curRelPos = None # ! mandatory
             self.setFlags(QtWidgets.QGraphicsItem.ItemIsSelectable)
             self.setAcceptHoverEvents(True)
@@ -81,7 +81,7 @@ class SchemeObjectItem():
             # inside the callback and a native access violation/heap
             # corruption (the delete-key crash).
             try:
-                if value == True:
+                if value:
                     #self.setFlag(self.ItemIsFocusable, True)   # For text
                     if not FreeCAD.Gui.Selection.isSelected(self.obj):
                         FreeCAD.Gui.Selection.addSelection(self.obj)

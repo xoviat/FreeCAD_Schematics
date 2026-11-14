@@ -28,6 +28,8 @@ Schematics.help()
 
 """
 
+from typing import Any
+
 from SCUtils import getRootPath
 
 class API:
@@ -37,7 +39,7 @@ class API:
     #    from Features.Items.Polyline import Polyline
     #    return Polyline(x, y, sheet)
 
-    def Rectangle(self, x=0, y=0, sheet=None):
+    def Rectangle(self, x: float = 0, y: float = 0, sheet: Any = None) -> Any:
         """
         Add Rectangle to sheet:
 
@@ -61,7 +63,7 @@ class API:
         # so a positional third argument would bind sheet -> width
         return Rectangle(x, y, sheet=sheet)
 
-    def Line(self, x=0, y=0, sheet=None):
+    def Line(self, x: float = 0, y: float = 0, sheet: Any = None) -> Any:
         """
         Add Line to sheet:
 
@@ -84,12 +86,34 @@ class API:
         # keyword arg: see note in Rectangle()
         return Line(x, y, sheet=sheet)
 
-    def help(self):
+    def Wire(self, points=None, sheet: Any = None, wireType: str | None = None) -> Any:
+        """
+        Add a first-class wire (conductor) to a sheet:
+
+        obj = Wire(points, sheet) -> obj
+
+        points(list) - vertex coordinates as (x, y) tuples or QPointF,
+            absolute sheet coordinates, at least two entries
+        sheet(obj) - the sheet object where the wire should be placed (optional)
+        wireType(str) - one of Power, Control, Hydraulic, Pneumatic, Signal
+            (optional, default Power)
+
+        Wires are document objects: they are saved with the file, can be
+        selected, moved and deleted like any other sheet element.
+
+        Example:
+        wire = Schematics.Wire([(0, 0), (50, 0), (50, 30)])
+        wire.WireType = "Hydraulic"
+        """
+        from Schematics.Features.Items.Wire import Wire as WireFactory
+        return WireFactory(points, sheet=sheet, wireType=wireType)
+
+    def help(self) -> None:
         with open(getRootPath('README.md'), 'r') as file:
             str = file.read()
             print(str)
 
-def gethelp():
+def gethelp() -> str:
     with open(getRootPath('README.md'), 'r') as file:
         str = file.read()
         print(str)

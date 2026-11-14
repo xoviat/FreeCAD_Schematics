@@ -1,4 +1,5 @@
-import traceback, importlib
+import traceback
+import importlib
 mods = [
  'SCUtils', 'Schematics.Utils', 'Schematics.API',
  'Schematics.Features.Utils.QtEnums', 'Schematics.Features.Utils.Snap',

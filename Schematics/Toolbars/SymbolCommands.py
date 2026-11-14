@@ -25,29 +25,25 @@ def addCommand(name, function=None):
     if function is not None:
         FreeCAD.Gui.addCommand(name, function)
 
-class SCDrawWireMode:
-    """ Switch editor to edit wire mode """
+class SCDrawWire:
+    """ Draw a wire (conductor) on the active sheet """
 
-    def GetResources(self):
+    def GetResources(self) -> dict[str, str]:
         return {
             'Pixmap': getToolbarIconPath('DrawWireMode.svg'),
-            'MenuText': "Switch editor to draw wire mode",
-            'ToolTip': "Switch editor to draw wire mode"
+            'MenuText': "Draw wire",
+            'ToolTip': "Click to place vertices, double-click or Enter to finish, Escape or right-click to cancel",
         }
 
-    def Activated(self):
-        #MessageBox("Warning", "FreeCAD Schematics", "Tool for adding wire connections is under development")
+    def Activated(self) -> None:
         scheme = tryToGetSchemeFromActiveWindow()
         if scheme is not None:
-            scheme.Proxy.scene.enableDrawWireMode()
-        #FreeCAD.ActiveDocument.recompute()
-        return
+            scheme.Proxy.scene.startWireDraw()
 
-    def IsActive(self):
+    def IsActive(self) -> bool:
         return activeWindowIsScheme()
 
-#addCommand('SCDrawWireMode', SCDrawWireMode())
-#addCommand('Separator')
+addCommand('SCDrawWire', SCDrawWire())
 
 class PrimitiveCommand:
     """ Add primitive """
@@ -126,11 +122,12 @@ class FunctionCommand:
 
     def Activated(self):
         scheme = tryToGetSchemeFromActiveWindow()
-        if scheme is not None:
+        if scheme is not None and self.func is not None:
             for item in scheme.Proxy.scene.selectedItems():
                 self.func(item.obj)
         # Update sheet after apply effects or actions to items
-        scheme.Proxy.scene.update()
+        if scheme is not None:
+            scheme.Proxy.scene.update()
 
     def IsActive(self):
         return activeWindowIsScheme()
@@ -175,13 +172,14 @@ class DialogFunctionCommand:
 
     def Activated(self):
         scheme = tryToGetSchemeFromActiveWindow()
-        if scheme is not None:
+        if scheme is not None and self.dlgfunc is not None and self.func is not None:
             res = self.dlgfunc()
             if res is not None:
                 for item in scheme.Proxy.scene.selectedItems():
                     self.func(item.obj, res)
         # Update sheet after apply effects or actions to items
-        scheme.Proxy.scene.update()
+        if scheme is not None:
+            scheme.Proxy.scene.update()
 
     def IsActive(self):
         return activeWindowIsScheme()

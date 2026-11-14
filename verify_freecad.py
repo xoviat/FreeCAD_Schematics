@@ -1,7 +1,9 @@
 # Run with (install the workbench first — python install.py):
 #   FreeCAD.exe verify_freecad.py
 # End-to-end verification of the Schematics workbench under FreeCAD 1.1.4 / PySide6
-import os, sys, traceback
+import os
+import sys
+import traceback
 import __main__
 
 # Paths derived from this script's location so no machine-specific user path
@@ -12,13 +14,17 @@ except NameError:  # executed without __file__ (e.g. via exec)
     _HERE = os.getcwd()
 LOG = os.path.join(_HERE, "_fc_verify.log")
 DOC = os.path.join(_HERE, "_fc_verify.FCStd")
-lines = []
-def log(s): lines.append(str(s)); print("[verify]", s, flush=True)
+lines: list[str] = []
+def log(s):
+    lines.append(str(s))
+    print("[verify]", s, flush=True)
 def step(name, fn):
     try:
-        fn(); log("PASS " + name)
+        fn()
+        log("PASS " + name)
     except Exception:
-        log("FAIL " + name); log(traceback.format_exc())
+        log("FAIL " + name)
+        log(traceback.format_exc())
 
 import FreeCAD
 import FreeCADGui as Gui
@@ -53,14 +59,26 @@ step("Schematics.Rectangle() API (console exposure)", t_api_object)
 
 def t_line_item():
     line = __main__.Schematics.Line(10, 10, sheet)
-    line.Width = 40; line.Height = 20
+    line.Width = 40
+    line.Height = 20
 step("Schematics.Line() API", t_line_item)
+
+def t_wire_item():
+    wire = __main__.Schematics.Wire([(5, 5), (45, 5), (45, 35)], sheet)
+    assert wire is not None
+    assert len(wire.Points) == 3, "wire has %d points" % len(wire.Points)
+    assert abs(float(wire.X.Value) - 5) < 1e-6, wire.X.Value
+    assert wire.WireType == "Power", wire.WireType
+    assert wire.Proxy.item is not None, "wire item not added to scene"
+step("Schematics.Wire() first-class object", t_wire_item)
 
 def t_cmd_items():
     # Symbol command path: creates under-cursor symbol then commits on click;
     # exercise the PrimitiveCommand + SVG renderer via scene directly.
     from Schematics.Features.Items.Symbol import Symbol
-    Symbol.typ = "Resistor"; Symbol.grp = "Resistors"; Symbol.std = "GOST"
+    Symbol.typ = "Resistor"
+    Symbol.grp = "Resistors"
+    Symbol.std = "GOST"
     sym = Symbol(120, 90, sheet)
     assert sym is not None and sym.Width.Value > 0, "symbol has no size"
 step("Symbol item (GOST resistor svg)", t_cmd_items)
@@ -98,15 +116,20 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 4, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 5, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
+    # Wires are document objects: points and item must survive the round trip
+    wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
+    assert len(wires) == 1, "wire did not survive save/load: %r" % wires
+    assert len(wires[0].Points) == 3, "wire points lost: %r" % wires[0].Points
+    assert wires[0].Proxy.item is not None, "wire item not rebuilt after reload"
 step("reload + onDocumentRestored", t_reload)
 
 def t_cleanup_api():
     # delete one element (onDelete path) then recompute
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
     victim = s.Elements[0]
-    FreeCAD.ActiveDocument.removeObject(vobj.Object.Name if False else victim.Name)
+    FreeCAD.ActiveDocument.removeObject(victim.Name)
     FreeCAD.ActiveDocument.recompute()
 step("delete element + recompute", t_cleanup_api)
 
@@ -128,9 +151,9 @@ def t_close_no_stale_window():
     assert tryToGetSchemeFromActiveWindow() is None
 step("close document leaves no stale window", t_close_no_stale_window)
 
-log("RESULT: %d PASS / %d FAIL" % (
-    sum(1 for l in lines if l.startswith("PASS")),
-    sum(1 for l in lines if l.startswith("FAIL"))))
+n_pass = len([line for line in lines if line.startswith("PASS")])
+n_fail = len([line for line in lines if line.startswith("FAIL")])
+log("RESULT: %d PASS / %d FAIL" % (n_pass, n_fail))
 open(LOG, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 # Drain pending Qt events (deferred deletes etc.) and flush the streams
 # before the hard exit: an event racing os._exit intermittently took the

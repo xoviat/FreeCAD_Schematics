@@ -26,7 +26,7 @@ def PrintPreviewAction():
         #asw.obj.Proxy.scene.render(painter)
         #, QtCore.QRect(0,0,printer.width(),printer.height()), QtCore.QRect(0,0,210.0,297.0))
         painter.end()
-        print(f"Printer information")
+        print("Printer information")
         print(f"printer name :{printer.printerName()}")
         print(f"supported resolutions :{printer.supportedResolutions()}")
         print(f"page rect:{printer.pageRect(QtPrintSupport.QPrinter.Unit.Millimeter)}")

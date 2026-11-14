@@ -22,7 +22,7 @@ def addShadow(obj, radius=10, xOffset=5, yOffset=5):
     shadow.setYOffset(yOffset)
     item.setGraphicsEffect(shadow)
 
-def addColorize(obj, color=QtGui.Qt.gray, strength=0.5):
+def addColorize(obj, color=QtGui.Qt.GlobalColor.gray, strength=0.5):
     """ Add colorization effect to schematics object """
     FreeCAD.Console.PrintWarning("\n! Effects not saves to file, and looks pixelated on print preview !\n\n")
     item = obj.Proxy.item
@@ -32,7 +32,7 @@ def addColorize(obj, color=QtGui.Qt.gray, strength=0.5):
     colorize.setStrength(strength)
     item.setGraphicsEffect(colorize)
 
-def addBlur(obj, radius=5, hint=QtWidgets.QGraphicsBlurEffect.QualityHint):
+def addBlur(obj, radius=5, hint=QtWidgets.QGraphicsBlurEffect.BlurHint.QualityHint):
     """ Add blur effect to schematics object """
     FreeCAD.Console.PrintWarning("\n! Effects not saves to file, and looks pixelated on print preview !\n\n")
     item = obj.Proxy.item

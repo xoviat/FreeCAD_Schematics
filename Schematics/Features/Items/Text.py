@@ -7,17 +7,21 @@
 #
 ###############################################################################
 
+from typing import Any
+
 from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Items.SchemeObject import *
 from Schematics.Features.Items.SchemeObjectItem import *
 from Schematics.Features.Utils.Snap import snap
 
 class Text:
-    def __new__(cls, x=None, y=None, sheet=None):
+    def __new__(cls, x=None, y=None, sheet=None) -> Any:
         obj = makeObject(TextFeature, TextViewProvider, sheet, cls)
         # Honor documented params; None keeps the interactive path unchanged
-        if x is not None: obj.X = x
-        if y is not None: obj.Y = y
+        if x is not None:
+            obj.X = x
+        if y is not None:
+            obj.Y = y
         return obj
 
 # ! Do not change name and location of this class
@@ -31,7 +35,7 @@ class TextFeature(SchemeObjectFeature):
 
     def onDataPropertyChanged(self, obj, prop):
         if prop == "Text":
-            if obj.Proxy.item.doNotUpdateText == True:
+            if obj.Proxy.item.doNotUpdateText:
                 obj.Proxy.item.doNotUpdateText = False
             else:
                 val = obj.getPropertyByName(prop)
@@ -110,7 +114,8 @@ class TextItem(SchemeObjectItem, QtWidgets.QGraphicsTextItem):
 
     drawMode = property(getmode, setmode)
 
-    def paint(self, g, option, widget):
+    def paint(self, painter, option, widget=None):
+        g = painter   # base stubs name this parameter "painter"
         g.setRenderHints(QtGui.QPainter.RenderHint.TextAntialiasing | QtGui.QPainter.RenderHint.Antialiasing)   # ...SmoothPixmapTransform
         super().paint(g, option, widget)
 

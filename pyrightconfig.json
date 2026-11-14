@@ -1,0 +1,23 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "standard",
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "_fc_src",
+    "_fc_*",
+    ".venv"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ],
+  "stubPath": "typings",
+  "reportMissingModuleSource": "none",
+  "reportAttributeAccessIssue": "warning",
+  "reportOptionalMemberAccess": "none"
+}
