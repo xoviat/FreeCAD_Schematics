@@ -38,8 +38,11 @@ BOM_COLUMNS: tuple[tuple[str, float], ...] = (
 )
 ROW_H = 7.0
 TITLE_H = 9.0
-PAD = 4.0
 FONT_PX = 4
+#: Stroke width for every table line (border, grid) - one width everywhere.
+LINE_W = 0.4
+#: Horizontal inset for cell text.
+TEXT_PAD = 2.0
 
 
 class BillOfMaterials:
@@ -128,12 +131,12 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
             # Placement footprint: the whole sheet, like other primitives
             return QtCore.QRectF(-5e3, -5e3, 10e3, 10e3)
         rows = self.tableRows()
-        width = sum(width for _name, width in BOM_COLUMNS) + 2 * PAD
-        height = 2 * PAD + ROW_H   # header row
+        width = sum(width for _name, width in BOM_COLUMNS) + 2.0
+        height = ROW_H   # header row
         if self._title():
             height += TITLE_H
         height += len(rows) * ROW_H
-        return QtCore.QRectF(-1.0, -1.0, width + 2.0, height + 2.0)
+        return QtCore.QRectF(-1.0, -1.0, width, height)
 
     def shape(self) -> QtGui.QPainterPath:
         path = QtGui.QPainterPath()
@@ -188,8 +191,8 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         paper = QtGui.QColor.fromRgbF(*appearance.paperColor())
         title = self._title()
 
-        total_w = sum(width for _name, width in BOM_COLUMNS) + 2 * PAD
-        height = 2 * PAD + ROW_H
+        total_w = sum(width for _name, width in BOM_COLUMNS)
+        height = ROW_H
         if title:
             height += TITLE_H
         height += len(rows) * ROW_H
@@ -200,69 +203,69 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
             QtGui.QPainter.RenderHint.Antialiasing
             | QtGui.QPainter.RenderHint.TextAntialiasing
         )
-        g.setPen(QtGui.QPen(line_color, 0.4))
+
+        # One pen, one width, for every stroke AND the text color - never
+        # call setPen() with a fresh pen in between (a default-width pen
+        # used to make the grid lines 1.0 wide against a 0.4 border).
+        pen = QtGui.QPen(line_color, LINE_W)
+        g.setPen(pen)
+        font = g.font()
+        font.setPixelSize(FONT_PX)
+        font.setBold(False)
+        font.setItalic(False)
+        g.setFont(font)
+
+        # Background + outer border (one connected rectangle)
         g.setBrush(paper)
         g.drawRect(QtCore.QRectF(0.0, 0.0, total_w, height))
         g.setBrush(QtCore.Qt.BrushStyle.NoBrush)
 
-        font = g.font()
-        font.setPixelSize(FONT_PX)
-        font.setBold(False)
-        g.setFont(font)
-        g.setPen(QtGui.QPen(line_color))
         text_flags = int(
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
         )
-
-        y = PAD
+        y = 0.0
         if title:
-            title_font = QtGui.QFont(font)
-            title_font.setPixelSize(FONT_PX + 2)
-            title_font.setBold(True)
-            g.setFont(title_font)
             g.drawText(
-                QtCore.QRectF(PAD, y, total_w - 2 * PAD, TITLE_H),
+                QtCore.QRectF(0.0, y, total_w, TITLE_H),
                 int(QtCore.Qt.AlignmentFlag.AlignCenter),
                 title,
             )
-            g.setFont(font)
             y += TITLE_H
+            g.drawLine(QtCore.QPointF(0.0, y), QtCore.QPointF(total_w, y))
 
-        # Header
-        header_font = QtGui.QFont(font)
-        header_font.setBold(True)
-        g.setFont(header_font)
-        x = PAD
+        # Header row (same font as everything else)
+        x = 0.0
         for name, width in BOM_COLUMNS:
             g.drawText(
-                QtCore.QRectF(x + 1.5, y, width - 3, ROW_H), text_flags, name
+                QtCore.QRectF(x + TEXT_PAD, y, width - 2 * TEXT_PAD, ROW_H),
+                text_flags,
+                name,
             )
             x += width
-        g.setFont(font)
         y += ROW_H
+        g.drawLine(QtCore.QPointF(0.0, y), QtCore.QPointF(total_w, y))
 
-        # Grid: column separators full height, row separators per row
-        g.drawLine(QtCore.QPointF(PAD, y), QtCore.QPointF(total_w - PAD, y))
-        x = PAD
-        for _name, width in BOM_COLUMNS[:-1]:
-            x += width
-            g.drawLine(QtCore.QPointF(x, PAD), QtCore.QPointF(x, height - PAD))
-
-        # Rows
+        # Data rows: every horizontal spans the full width, every vertical
+        # spans the full height, so all lines meet the border and each
+        # other - a fully connected grid.
         for row in rows:
             cells = (row.designator, row.value, row.symbol, row.description)
-            x = PAD
+            x = 0.0
             for (_name, width), cell in zip(BOM_COLUMNS, cells):
                 g.drawText(
-                    QtCore.QRectF(x + 1.5, y, width - 3, ROW_H),
+                    QtCore.QRectF(x + TEXT_PAD, y, width - 2 * TEXT_PAD, ROW_H),
                     text_flags,
                     cell,
                 )
                 x += width
             y += ROW_H
-            g.drawLine(
-                QtCore.QPointF(PAD, y), QtCore.QPointF(total_w - PAD, y)
-            )
+            if y < height:   # last row line is the bottom border itself
+                g.drawLine(QtCore.QPointF(0.0, y), QtCore.QPointF(total_w, y))
+
+        x = 0.0
+        for _name, width in BOM_COLUMNS[:-1]:
+            x += width
+            g.drawLine(QtCore.QPointF(x, 0.0), QtCore.QPointF(x, height))
 
         g.endNativePainting()
         g.restore()
