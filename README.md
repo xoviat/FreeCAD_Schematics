@@ -161,6 +161,7 @@ The sheet view follows the KiCad schematic editor's default hotkeys so muscle me
 | `Esc` | Cancel active tool (wire, placement) / clear selection |
 | `Home` | Zoom to fit the sheet |
 | `Enter` / double-click | Finish wire, place the chosen symbol |
+| `Ctrl+E` | Symbol manager (pin editor opens directly for the selected symbol) |
 | `Ctrl+C/X/V`, `Ctrl+Z/Y` | Clipboard and undo/redo (FreeCAD defaults) |
 
 Hotkeys are declared as the `Accel` resource on each command and only fire while a

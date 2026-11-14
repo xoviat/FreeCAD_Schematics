@@ -155,6 +155,60 @@ def t_shortcuts():
             "hotkey %s -> %r missing (got %r)" % (key, needle, text)
 step("KiCad-style hotkeys registered", t_shortcuts)
 
+def t_symbol_manager():
+    import dataclasses
+    import os
+    import shutil
+    import tempfile
+    from Schematics.Features.Dialogs.SymbolManager import (
+        PinEditor,
+        SymbolManager,
+        validatePins,
+    )
+    from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog, SymbolPin
+    from Schematics.Features.Utils.SVGSymbolsCache import extractPins
+
+    cat = SymbolCatalog()
+    dlg = SymbolManager(catalog=cat)
+    assert dlg.table.rowCount() >= 5, dlg.table.rowCount()
+    assert dlg._selected() is not None, "first row not selected"
+
+    # Pin editor roundtrip on a TEMP copy - the real store is never written.
+    src = next(e for e in cat.all() if len(cat.pins(e)) >= 2)
+    tmp = tempfile.mkdtemp(prefix="sc_sym_")
+    try:
+        dst = os.path.join(tmp, os.path.basename(src.path))
+        shutil.copy2(src.path, dst)
+        editor = PinEditor(
+            path=dst,
+            pins=[SymbolPin("1", 1.5, 2.0), SymbolPin("2", 9.0, 2.0)],
+            description="roundtrip test",
+            ref="K",
+        )
+        assert editor.save() is None, "save failed"
+        with open(dst, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        _data, raw = extractPins(text)
+        assert [(n, float(x), float(y)) for n, x, y in raw] == [
+            ("1", 1.5, 2.0), ("2", 9.0, 2.0)
+        ], raw
+        assert 'schematics:description="roundtrip test"' in text
+        assert 'schematics:ref="K"' in text
+        # invalid pin names must be rejected (loader charset), not written
+        bad = PinEditor(
+            path=dst, pins=[SymbolPin("bad name!", 0.0, 0.0)],
+            description="", ref="",
+        )
+        assert bad.save(), "invalid pin name accepted"
+        assert validatePins([SymbolPin("A1", 0.0, 0.0)]) is None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # No deleteLater(): a pending deferred delete races the hard os._exit()
+    # at the end of this script (GILState fatal, exit 127).
+    dlg.close()
+step("symbol manager + pin editor (temp store)", t_symbol_manager)
+
 def t_view_props():
     v = sheet.ViewObject
     v.GridVisible = False

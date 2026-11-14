@@ -81,8 +81,18 @@ class SymbolItem(SchemeObjectItem, QtSvgWidgets.QGraphicsSvgItem):
 
     def rerender(self):
         self.irenderer = QtSvg.QSvgRenderer()
-        self.irenderer.setAspectRatioMode(QtCore.Qt.KeepAspectRatio)
-        data, pins = loadSVGSymbol(self.obj.Standard+"\\"+self.obj.Group+"\\"+self.typ)
+        self.irenderer.setAspectRatioMode(QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+        try:
+            data, pins = loadSVGSymbol(self.obj.Standard+"\\"+self.obj.Group+"\\"+self.typ)
+        except OSError as exc:
+            # Symbol file deleted/renamed outside FreeCAD (symbol manager
+            # delete, manual edits): render a placeholder instead of letting
+            # the error escape into Qt's paint/restore machinery.
+            FreeCAD.Console.PrintError(
+                "Schematics: missing symbol %s (%s)\n" % (self.typ, exc))
+            data = ('<svg xmlns="http://www.w3.org/2000/svg" width="10" '
+                    'height="10" viewBox="0 0 10 10"></svg>')
+            pins = []
         data = self.sheet.Proxy.appearance.decode(data)
         self.irenderer.load(data.encode())
         self.setSharedRenderer(self.irenderer)

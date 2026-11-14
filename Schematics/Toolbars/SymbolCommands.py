@@ -82,6 +82,50 @@ class SCChooseSymbol:
 addCommand('SCChooseSymbol', SCChooseSymbol())
 addCommand('Separator')
 
+
+class SCSymbolManager:
+    """ Browse/edit the symbol store (KiCad's Symbol Editor equivalent) """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('SymbolManager.svg'),
+            'MenuText': "Symbol manager…",
+            'ToolTip': "Browse, duplicate, import and edit symbol pins/metadata "
+                       "(opens the pin editor directly for the selected symbol)",
+            'Accel': 'Ctrl+E',
+        }
+
+    def Activated(self) -> None:
+        from Schematics.Features.Dialogs.SymbolManager import (
+            PinEditor,
+            SymbolManager,
+            readSymbol,
+        )
+        from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
+        catalog = SymbolCatalog()
+        parent = FreeCAD.Gui.getMainWindow()
+        # KiCad Ctrl+E: with a symbol selected, edit that symbol directly.
+        entry = None
+        for obj in FreeCAD.Gui.Selection.getSelection():
+            entry = catalog.find_by_instance(obj)
+            if entry is not None:
+                break
+        if entry is not None:
+            desc, ref, pins = readSymbol(entry.path)
+            editor = PinEditor(
+                path=entry.path, pins=pins, description=desc, ref=ref,
+                cacheKey=entry.key, parent=parent,
+            )
+            editor.exec()
+            return
+        SymbolManager(catalog=catalog, parent=parent).exec()
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCSymbolManager', SCSymbolManager())
+
 class PrimitiveCommand:
     """ Add primitive """
 

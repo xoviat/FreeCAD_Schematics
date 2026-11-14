@@ -26,6 +26,10 @@ def loadSVGSymbol(type):
             return data, pins
     return cacheData
 
+def invalidate(type):
+    """Drop a cached symbol (after the symbol editor rewrites its file)."""
+    cache.pop(type, None)
+
 import sys
 
 def getCacheSize():

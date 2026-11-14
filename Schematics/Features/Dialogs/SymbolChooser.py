@@ -45,6 +45,10 @@ def recent_keys() -> list[str]:
 class SymbolPreview(QtWidgets.QWidget):
     """Renders one symbol's SVG with its pins drawn as labelled dots."""
 
+    # Emitted with SVG user coordinates when the user clicks the preview
+    # (the pin editor uses this to place pins by clicking).
+    pinPicked = QtCore.Signal(float, float)
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self._catalog: SymbolCatalog | None = None
@@ -61,10 +65,29 @@ class SymbolPreview(QtWidgets.QWidget):
         self._highlight = None
         if entry is not None:
             data, raw = catalog.load(entry)
-            self._renderer.load(data.encode())
-            self._pins = [SymbolPin(str(n), float(x), float(y)) for n, x, y in raw]
+            self.setData(data, raw, entry)
         else:
             self._renderer = QtSvg.QSvgRenderer()
+            self.update()
+
+    def setData(
+        self,
+        data: str,
+        raw_pins: list[tuple[str, float, float]],
+        entry: SymbolEntry | None = None,
+    ) -> None:
+        """Render raw SVG text (the pin editor works on arbitrary files,
+        possibly outside the catalog cache)."""
+        self._entry = entry
+        self._renderer = QtSvg.QSvgRenderer()
+        self._renderer.load(data.encode())
+        self._pins = [SymbolPin(str(n), float(x), float(y)) for n, x, y in raw_pins]
+        self._highlight = None
+        self.update()
+
+    def setPins(self, pins: list[SymbolPin]) -> None:
+        """Update pins without reloading the SVG (live pin editing)."""
+        self._pins = list(pins)
         self.update()
 
     def setHighlight(self, pinName: str | None) -> None:
@@ -85,6 +108,19 @@ class SymbolPreview(QtWidgets.QWidget):
         x = (self.width() - w) / 2.0
         y = (self.height() - h) / 2.0
         return QtCore.QRectF(x, y, w, h)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        """Click inside the preview -> emit SVG coordinates (pin placing)."""
+        if self._entry is not None and self._renderer.isValid():
+            vb = self._renderer.viewBoxF()
+            target = self._target_rect()
+            if not vb.isEmpty() and target.contains(event.position()):
+                sx = vb.width() / target.width() if target.width() else 1.0
+                sy = vb.height() / target.height() if target.height() else 1.0
+                x = vb.left() + (event.position().x() - target.left()) * sx
+                y = vb.top() + (event.position().y() - target.top()) * sy
+                self.pinPicked.emit(x, y)
+        super().mousePressEvent(event)
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter(self)
