@@ -81,14 +81,39 @@ class GuiDocumentObserver:
     def slotDeletedObject(self, viewProviderObject):
         # During teardown the view provider can already be dead: attribute
         # access raises ReferenceError, which must not escape into FreeCAD.
+        # Cleanup runs FIRST and independently of logging: the Qt item must go
+        # with the App object (a visible zombie item later clicks into
+        # "Cannot check invalid object" inside a Qt override — the crash).
+        # (registration captures this callback before any external wrap can
+        # attach, so this method must stay self-contained — no helpers.)
         try:
-            if viewProviderObject.TypeId == 'Gui::ViewProviderPythonFeature':
-                print('slotDeletedObject')
-                print('Object delete: ', viewProviderObject.Object.Name)
-                # If method exist invoke it
-                if hasattr(viewProviderObject.Object.Proxy, 'onDelete'):
-                    viewProviderObject.Object.Proxy.onDelete()
+            # FreeCAD 1.1 reports 'Gui::ViewProviderFeaturePython'; older
+            # builds (and much workbench code) use 'Gui::ViewProviderPythonFeature'.
+            # A wrong gate here silently skipped cleanup and left deleted
+            # objects as visible zombie items (the delete-key crash source).
+            if viewProviderObject.TypeId not in (
+                    'Gui::ViewProviderFeaturePython',
+                    'Gui::ViewProviderPythonFeature'):
+                return
         except (ReferenceError, RuntimeError, AttributeError):
+            return
+        try:
+            obj = viewProviderObject.Object
+        except (ReferenceError, RuntimeError, AttributeError):
+            obj = None
+        if obj is not None:
+            try:
+                proxy = obj.Proxy
+                if hasattr(proxy, 'onDelete'):
+                    proxy.onDelete()
+            except (ReferenceError, RuntimeError, AttributeError):
+                pass    # already half-deleted; nothing left to clean up
+        # Logging only — never gates the cleanup above.
+        try:
+            print('slotDeletedObject')
+            if obj is not None:
+                print('Object delete: ', obj.Name)
+        except Exception:
             pass
 
     def slotDeletedDocument(self, document):
@@ -106,7 +131,9 @@ class GuiDocumentObserver:
             print(f"closeSchemeWindowsOfDocument failed: {e}")
 
     def slotCreatedObject(self, viewProviderObject):
-        if viewProviderObject.TypeId == 'Gui::ViewProviderPythonFeature':
+        if viewProviderObject.TypeId in (
+                'Gui::ViewProviderFeaturePython',
+                'Gui::ViewProviderPythonFeature'):
             print('Object create: ', viewProviderObject.Object.Name)
             # Ignore object that not have Proxy
             if hasattr(viewProviderObject.Object, "Proxy"):

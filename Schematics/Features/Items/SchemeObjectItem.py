@@ -73,14 +73,24 @@ class SchemeObjectItem():
             value = snap(value, self.sheet)
             return value   # Return value with snap to grid
         if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemSelectedChange:
-            if value == True:
-                #self.setFlag(self.ItemIsFocusable, True)   # For text
-                if not FreeCAD.Gui.Selection.isSelected(self.obj):
-                    FreeCAD.Gui.Selection.addSelection(self.obj)
-                #self.showMarkers() #self.marker.show()
-            else:
-                #self.setFlag(self.ItemIsFocusable, False)  # For text
-                if FreeCAD.Gui.Selection.isSelected(self.obj):
-                    FreeCAD.Gui.Selection.removeSelection(self.obj)
-                #self.hideMarkers() #self.marker.hide()
+            # The App object can already be deleted while this Qt item still
+            # survives (a half-failed delete leaves a visible zombie item):
+            # the Selection API then raises "Cannot check invalid object".
+            # Never let that escape into the Qt override machinery — through
+            # PySide a Python error here becomes a stored error, a C++ throw
+            # inside the callback and a native access violation/heap
+            # corruption (the delete-key crash).
+            try:
+                if value == True:
+                    #self.setFlag(self.ItemIsFocusable, True)   # For text
+                    if not FreeCAD.Gui.Selection.isSelected(self.obj):
+                        FreeCAD.Gui.Selection.addSelection(self.obj)
+                    #self.showMarkers() #self.marker.show()
+                else:
+                    #self.setFlag(self.ItemIsFocusable, False)  # For text
+                    if FreeCAD.Gui.Selection.isSelected(self.obj):
+                        FreeCAD.Gui.Selection.removeSelection(self.obj)
+                    #self.hideMarkers() #self.marker.hide()
+            except (FreeCAD.Base.FreeCADError, ReferenceError, RuntimeError):
+                pass    # object already deleted; a zombie item has nothing to select
         return super().itemChange(change, value)
