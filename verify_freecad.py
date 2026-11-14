@@ -167,6 +167,46 @@ def t_designators():
     FreeCAD.ActiveDocument.recompute()
 step("designators + annotation (KiCad-style)", t_designators)
 
+def t_component_list():
+    import csv
+    import os
+    import tempfile
+    from Schematics.Features.Dialogs.ComponentList import ComponentListDialog
+    from Schematics.Features.Utils.Reports import (
+        componentListText,
+        componentRows,
+        writeCsv,
+    )
+
+    rows = componentRows(sheet)
+    desigs = [r.designator for r in rows]
+    assert "R1" in desigs and "R2" in desigs, desigs
+    # natural ordering: R1 before R2 (and R2 before R10 if it existed)
+    assert desigs.index("R1") < desigs.index("R2"), desigs
+    r1 = next(r for r in rows if r.designator == "R1")
+    assert r1.value == "Resistor", r1.value
+    assert r1.symbol.endswith("/Resistor"), r1.symbol
+
+    text = componentListText(rows)
+    assert "Designator" in text and "R1" in text and "R2" in text
+
+    tmp = tempfile.mkdtemp(prefix="sc_report_")
+    try:
+        path = os.path.join(tmp, "components.csv")
+        writeCsv(path, rows)
+        with open(path, "r", encoding="utf-8", newline="") as fh:
+            parsed = list(csv.reader(fh))
+        assert parsed[0][0] == "Designator", parsed[0]
+        assert any(line[0] == "R1" for line in parsed[1:]), parsed
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    dialog = ComponentListDialog(rows)
+    assert dialog.table.rowCount() == len(rows)
+    dialog.close()   # no deleteLater: races the hard os._exit() at the end
+step("component list (rows, text, csv, dialog)", t_component_list)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()

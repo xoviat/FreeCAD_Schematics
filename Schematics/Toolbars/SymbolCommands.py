@@ -156,6 +156,31 @@ class SCAnnotate:
 
 addCommand('SCAnnotate', SCAnnotate())
 
+
+class SCComponentList:
+    """ Component list / BOM-lite for the active sheet """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('ComponentList.svg'),
+            'MenuText': "Component list…",
+            'ToolTip': "List annotated symbols (designator, value, symbol, "
+                       "description) with CSV export",
+        }
+
+    def Activated(self) -> None:
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return
+        from Schematics.Features.Dialogs.ComponentList import openComponentList
+        openComponentList(scheme, parent=FreeCAD.Gui.getMainWindow())
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCComponentList', SCComponentList())
+
 class PrimitiveCommand:
     """ Add primitive """
 

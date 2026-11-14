@@ -57,6 +57,13 @@ The **Annotate sheet** command fills any remaining empty designators without col
 The designator is drawn above the symbol and the value below it; the value stays hidden
 while it equals the library name, exactly like KiCad's default fields.
 
+### Component list
+
+**Component list…** lists every annotated symbol of the sheet (designator, value, symbol,
+description) with CSV export and clipboard copy - the device list a machine schematic is
+delivered with. Rows are ordered naturally (R1, R2, R10); symbols without a designator are
+covered by **Annotate sheet** first.
+
 ### Delete symbol(s)
 
 Select symbol(s) in sheet or in treeview. Press delete key on keyboard.
