@@ -31,6 +31,10 @@ class Symbol:
             obj.X = x
         if y is not None:
             obj.Y = y
+        # KiCad-style auto-annotation on placement (prefix from the
+        # symbol's schematics:ref metadata; no-op without a prefix).
+        from Schematics.Features.Utils.Annotate import autoDesignate
+        autoDesignate(obj, sheet)
         return obj
 
 # ! Do not change name and location of this class
@@ -43,11 +47,19 @@ class SymbolFeature(SchemeObjectFeature):
         obj.addProperty('App::PropertyEnumeration', 'Standard', 'Data',
             'Defines the appearance of the symbol', 8+16).Standard = Standards
         obj.Standard = Standards
+        # KiCad-style fields: Designator is auto-assigned on placement from
+        # the library's schematics:ref prefix; Value defaults to the
+        # library name and is hidden while it equals it.
+        obj.addProperty('App::PropertyString', 'Designator', 'Data',
+                        'Reference designator (e.g. K1)', 8+16).Designator = ''
+        obj.addProperty('App::PropertyString', 'Value', 'Data',
+                        'Component value shown under the symbol', 8+16).Value = ''
         obj.setPropertyStatus("Width", "ReadOnly")
         obj.setPropertyStatus("Height", "ReadOnly")
 
     def onDataPropertyChanged(self, obj, prop):
-        pass
+        if prop in ("Designator", "Value") and hasattr(obj.Proxy, "item"):
+            obj.Proxy.item.update()   # repaint the field labels
 
     def getItem(self, obj, sheet):
         return SymbolItem(obj, sheet)
@@ -112,7 +124,60 @@ class SymbolItem(SchemeObjectItem, QtSvgWidgets.QGraphicsSvgItem):
             # ! extendet boundingRect size must be proportional with original
             return super().boundingRect().adjusted(-5e+3, -5e+3, 10e+3, 10e+3)
         else:
-            return super().boundingRect()
+            base = super().boundingRect()
+            # Room for the designator (above) and value (below) labels so
+            # they are not clipped and are clickable like in KiCad.
+            return base.adjusted(0.0, -self._labelMargin(), 0.0, self._labelMargin())
+
+    def _labelMargin(self) -> float:
+        """Vertical space the field labels need (0 when nothing is shown)."""
+        try:
+            designator = str(self.obj.Designator or "")
+            value = str(self.obj.Value or "")
+            if value == str(self.obj.Type):
+                value = ""   # default value = library name: hidden
+        except (ReferenceError, RuntimeError, AttributeError):
+            return 0.0
+        if not designator and not value:
+            return 0.0
+        return super().boundingRect().height() * 0.4
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        try:
+            designator = str(self.obj.Designator or "")
+            value = str(self.obj.Value or "")
+            if value == str(self.obj.Type):
+                value = ""   # hide the default value (library name)
+        except (ReferenceError, RuntimeError, AttributeError):
+            return
+        if not designator and not value:
+            return
+        rect = super().boundingRect()
+        painter.save()
+        color = QtGui.QColor.fromRgbF(*self.sheet.Proxy.appearance.linesColor())
+        painter.setPen(QtGui.QPen(color))
+        font = painter.font()
+        font.setPixelSize(max(3, int(rect.height() * 0.3)))
+        painter.setFont(font)
+        height = float(painter.fontMetrics().height())
+        if designator:
+            above = QtCore.QRectF(rect.left(), rect.top() - height, rect.width(), height)
+            painter.drawText(
+                above,
+                int(QtCore.Qt.AlignmentFlag.AlignHCenter
+                    | QtCore.Qt.AlignmentFlag.AlignBottom),
+                designator,
+            )
+        if value:
+            below = QtCore.QRectF(rect.left(), rect.bottom(), rect.width(), height)
+            painter.drawText(
+                below,
+                int(QtCore.Qt.AlignmentFlag.AlignHCenter
+                    | QtCore.Qt.AlignmentFlag.AlignTop),
+                value,
+            )
+        painter.restore()
 
     def shape(self):
         path = QtGui.QPainterPath()

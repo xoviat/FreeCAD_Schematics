@@ -48,6 +48,15 @@ right-click to cancel. Wires are first-class document objects: they are saved wi
 selected, moved and deleted like any other element, and carry a `WireType` (Power, Control, Hydraulic, Pneumatic, Signal)
 plus per-wire stroke style (StrokeWidth / StrokeDash) in the property tab.
 
+### Designators and values
+
+Symbols carry KiCad-style `Designator` (K1, R3) and `Value` fields in the property tab.
+On placement a symbol is annotated automatically when its library entry defines a reference
+prefix (`schematics:ref`, set in the symbol manager's pin editor - `Resistor` ships with `R`).
+The **Annotate sheet** command fills any remaining empty designators without collisions.
+The designator is drawn above the symbol and the value below it; the value stays hidden
+while it equals the library name, exactly like KiCad's default fields.
+
 ### Delete symbol(s)
 
 Select symbol(s) in sheet or in treeview. Press delete key on keyboard.

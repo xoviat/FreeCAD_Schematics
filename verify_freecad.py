@@ -136,6 +136,37 @@ def t_transforms():
     FreeCAD.ActiveDocument.recompute()
 step("transform commands (KiCad R/Shift+R/X/Y)", t_transforms)
 
+def t_designators():
+    from Schematics.Features.Items.Symbol import Symbol
+    from Schematics.Features.Utils.Annotate import (
+        annotateSheet,
+        nextDesignator,
+    )
+    syms = [o for o in FreeCAD.ActiveDocument.Objects
+            if getattr(o, "Type", "") == "Resistor"]
+    assert syms, "no resistor placed"
+    first = syms[0]
+    # Auto-assigned on placement: Resistor.svg carries schematics:ref="R"
+    assert first.Designator == "R1", first.Designator
+    # Value defaults to the library name (hidden while it equals it)
+    assert first.Value == "Resistor", first.Value
+
+    Symbol.typ = "Resistor"
+    Symbol.grp = "Resistors"
+    Symbol.std = "GOST"
+    second = Symbol(160, 90, sheet)
+    assert second.Designator == "R2", second.Designator
+
+    # Annotate fills a cleared designator without collisions
+    first.Designator = ""
+    assigned, _skipped = annotateSheet(sheet)
+    assert assigned == 1, assigned
+    assert first.Designator == "R1", first.Designator
+    assert second.Designator == "R2", second.Designator
+    assert nextDesignator("R", {"R1", "R2"}) == "R3"
+    FreeCAD.ActiveDocument.recompute()
+step("designators + annotation (KiCad-style)", t_designators)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
@@ -236,7 +267,7 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 5, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 6, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]

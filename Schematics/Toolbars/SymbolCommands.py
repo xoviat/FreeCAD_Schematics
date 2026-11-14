@@ -126,6 +126,36 @@ class SCSymbolManager:
 
 addCommand('SCSymbolManager', SCSymbolManager())
 
+
+class SCAnnotate:
+    """ Assign designators to unannotated symbols (KiCad Annotate) """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('Annotate.svg'),
+            'MenuText': "Annotate sheet",
+            'ToolTip': "Assign designators to symbols that have none, using "
+                       "each symbol's reference prefix",
+        }
+
+    def Activated(self) -> None:
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return
+        from Schematics.Features.Utils.Annotate import annotateSheet
+        assigned, skipped = annotateSheet(scheme)
+        FreeCAD.Console.PrintMessage(
+            "Schematics: annotated %d symbol(s), %d without a reference prefix\n"
+            % (assigned, skipped))
+        if FreeCAD.ActiveDocument is not None:
+            FreeCAD.ActiveDocument.recompute()
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCAnnotate', SCAnnotate())
+
 class PrimitiveCommand:
     """ Add primitive """
 
