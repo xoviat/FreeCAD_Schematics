@@ -108,6 +108,29 @@ class API:
         from Schematics.Features.Items.Wire import Wire as WireFactory
         return WireFactory(points, sheet=sheet, wireType=wireType)
 
+    def BillOfMaterials(self, x: float = 0, y: float = 0, sheet: Any = None) -> Any:
+        """
+        Add a live bill-of-materials table to a sheet:
+
+        obj = BillOfMaterials(x, y, sheet) -> obj
+
+        x(float) - table position on the sheet (optional)
+        y(float) - table position on the sheet (optional)
+        sheet(obj) - target sheet (optional; defaults to the active window)
+
+        The table renders the sheet's annotated symbols (designator,
+        value, symbol, description) and refreshes as they change; only
+        the position and the Title are stored on the object.
+
+        Example:
+        bom = Schematics.BillOfMaterials(20, 180)
+        bom.Title = "Device list"
+        """
+        from Schematics.Features.Items.BillOfMaterials import (
+            BillOfMaterials as BOMFactory,
+        )
+        return BOMFactory(x, y, sheet=sheet)
+
     def help(self) -> None:
         with open(getRootPath('README.md'), 'r') as file:
             str = file.read()

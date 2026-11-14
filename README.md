@@ -118,6 +118,11 @@ description) with CSV export and clipboard copy - the device list a machine sche
 delivered with. Rows are ordered naturally (R1, R2, R10); symbols without a designator are
 covered by **Annotate sheet** first.
 
+**Add BOM table** places the same list *on the sheet* as a table object (KiCad/QET table
+style): position it like any other element, edit its `Title` in the property tab, and the
+rows refresh live as symbols are annotated, renamed or deleted - only position and heading
+are stored, the content always mirrors the sheet.
+
 ### Delete symbol(s)
 
 Select symbol(s) in sheet or in treeview. Press delete key on keyboard.

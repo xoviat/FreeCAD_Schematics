@@ -510,6 +510,30 @@ def t_sheet_size():
     FreeCAD.ActiveDocument.recompute()
 step("paper size property (A4/Letter/template)", t_sheet_size)
 
+def t_bom_table():
+    from Schematics.Features.Utils.Reports import componentRows
+
+    expected = len(componentRows(sheet))
+    assert expected >= 2, expected
+
+    bom = __main__.Schematics.BillOfMaterials(30, 200, sheet)
+    assert bom is not None
+    assert str(bom.Type) == "BillOfMaterials", bom.Type
+    item = bom.Proxy.item
+    assert item is not None
+    # the drawn table shows exactly the sheet's component rows
+    assert len(item.tableRows()) == expected, (len(item.tableRows()), expected)
+    rect = item.boundingRect()
+    assert rect.width() > 80 and rect.height() > 20, rect
+    # the table object itself is not a component (no Designator property)
+    assert len(componentRows(sheet)) == expected
+
+    # editable heading
+    bom.Title = "Device list"
+    assert bom.Title == "Device list", bom.Title
+    FreeCAD.ActiveDocument.recompute()
+step("BOM table element (on-sheet component list)", t_bom_table)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()
@@ -610,11 +634,13 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 9, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 10, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
     assert len(wires) == 4, "wires did not survive save/load: %r" % wires
+    assert any(getattr(o, "Type", "") == "BillOfMaterials" for o in s.Elements), \
+        "BOM table did not survive save/load"
     assert len(wires[0].Points) == 3, "wire points lost: %r" % wires[0].Points
     assert wires[0].Proxy.item is not None, "wire item not rebuilt after reload"
 step("reload + onDocumentRestored", t_reload)

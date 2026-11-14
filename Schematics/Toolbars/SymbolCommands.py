@@ -182,6 +182,31 @@ class SCComponentList:
 addCommand('SCComponentList', SCComponentList())
 
 
+class SCAddBom:
+    """ Place a live bill-of-materials table on the sheet """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('BillOfMaterials.svg'),
+            'MenuText': "Add BOM table",
+            'ToolTip': "Place a live component-list table (designator, value, "
+                       "symbol, description) that refreshes with the sheet",
+        }
+
+    def Activated(self) -> None:
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return
+        from Schematics.Features.Items.BillOfMaterials import BillOfMaterials
+        StartDraw(BillOfMaterials)
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCAddBom', SCAddBom())
+
+
 class SCCheckConnections:
     """ Check pins and wire ends (geometric ERC-lite) """
 
