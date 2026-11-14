@@ -389,6 +389,34 @@ def t_multi_page():
     dialog.close()   # no deleteLater: races the hard os._exit()
 step("page numbers + sheet index", t_multi_page)
 
+def t_wire_visuals():
+    from Schematics.Features.Items.Wire import DASHED_WIRE_TYPES
+    from Schematics.Features.Utils.Connectivity import junctionPoints
+
+    assert DASHED_WIRE_TYPES == ("Control", "Signal"), DASHED_WIRE_TYPES
+
+    wires = [o for o in FreeCAD.ActiveDocument.Objects
+             if getattr(o, "Type", "") == "Wire"]
+    assert len(wires) == 3, len(wires)
+    first, second, third = wires
+
+    # the T junction: the third wire's start sits on the first wire's
+    # body, so the third wire gets a junction dot there - and only it
+    # (the first wire's own ends touch nothing)
+    dots_third = junctionPoints(sheet, third)
+    assert len(dots_third) == 1, dots_third
+    assert abs(dots_third[0].x() - 45.0) < 0.01 and abs(dots_third[0].y() - 20.0) < 0.01, dots_third
+    assert junctionPoints(sheet, first) == [], junctionPoints(sheet, first)
+    # second wire's ends are on pins (terminals, not wire crossings)
+    assert junctionPoints(sheet, second) == [], junctionPoints(sheet, second)
+
+    # conductor class roundtrip
+    first.WireType = "Control"
+    assert first.WireType == "Control", first.WireType
+    first.WireType = "Power"
+    FreeCAD.ActiveDocument.recompute()
+step("junction dots + conductor classes", t_wire_visuals)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()

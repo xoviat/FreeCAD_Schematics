@@ -75,6 +75,14 @@ the wire tool snaps with, resolved through the item transforms (rotation-safe). 
 pin types and net names are not modelled yet - this checks that the drawing is wired, not
 that it is electrically legal.
 
+### Junctions and conductor classes
+
+Where a wire's end lands on another wire, both drawing conventions appear automatically:
+a **junction dot** at the contact point (pin terminals stay dot-free - they are symbol
+contacts). The `WireType` property carries the conductor class; **Control** and **Signal**
+wires default to a dashed style, everything else stays solid, and the per-wire `StrokeDash`
+property still overrides the look.
+
 ### Pages and sheet index
 
 Every sheet draws its **Page N of M** number bottom-right, in document order. `PgUp`/`PgDn`

@@ -41,6 +41,11 @@ from Schematics.Features.Items.StrokeMixin import (
 #: (StrokeDash in particular), so a Control wire can be drawn dashed.
 WIRE_TYPES: list[str] = ["Power", "Control", "Hydraulic", "Pneumatic", "Signal"]
 
+#: Conductor classes drawn dashed by default (control/signal wiring);
+#: Power/Hydraulic/Pneumatic stay solid. Users can still override the
+#: style per wire through the StrokeDash view property.
+DASHED_WIRE_TYPES: tuple[str, ...] = ("Control", "Signal")
+
 PointInput = QtCore.QPointF | tuple[float, float]
 
 
@@ -268,13 +273,24 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         if self.isSelected():
             color = QtCore.Qt.GlobalColor.green
         pen: QtGui.QPen
-        if getattr(self, "_netHighlight", False):
+        wire_type = "Power"
+        try:
+            wire_type = str(self.obj.WireType)
+        except (ReferenceError, RuntimeError, AttributeError):
+            pass
+        highlighted = bool(getattr(self, "_netHighlight", False))
+        if highlighted:
             # KiCad-style net highlight: accent colour, slightly heavier
             pen = QtGui.QPen(QtGui.QColor("#2563eb"), self._strokeWidth() + 1.0)
         else:
             pen = getattr(self.obj.ViewObject.Proxy, "pen", None) \
                 or QtGui.QPen(color, 0.5)
             pen.setColor(color)
+            if (
+                wire_type in DASHED_WIRE_TYPES
+                and pen.style() == QtCore.Qt.PenStyle.SolidLine
+            ):
+                pen.setStyle(QtCore.Qt.PenStyle.DashLine)
         g.setPen(pen)
 
         path = QtGui.QPainterPath(pts[0])
@@ -285,6 +301,15 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         if self.isSelected():
             for p in pts:
                 self.drawAnchor(g, p.x(), p.y())
+
+        # Junction dots where this wire's ends land on another wire
+        # (the drawing convention for connected crossings/T junctions)
+        from Schematics.Features.Utils.Connectivity import junctionPoints
+        g.setBrush(color if not highlighted else QtGui.QColor("#2563eb"))
+        for scene_point in junctionPoints(self.sheet, self.obj):
+            local = self.mapFromScene(scene_point)
+            g.drawEllipse(local, 1.8, 1.8)
+        g.setBrush(QtCore.Qt.BrushStyle.NoBrush)
 
         # Label at the middle vertex, above the line (KiCad net-label style)
         try:

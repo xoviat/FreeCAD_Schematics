@@ -312,6 +312,43 @@ def netClosure(sheet: Any, seed: str) -> set[str]:
     return members
 
 
+def junctionPoints(sheet: Any, wire: Any) -> list[QtCore.QPointF]:
+    """Own endpoints that land on ANOTHER wire (body or end) - where the
+    drawing convention puts a junction dot. Pin terminals are excluded:
+    those ends are symbol contacts, not wire crossings."""
+    tol = connectionTolerance(sheet)
+    own = _wirePolyline(sheet, wire)
+    if len(own) < 2:
+        return []
+    try:
+        own_name = str(wire.Name)
+    except (ReferenceError, RuntimeError, AttributeError):
+        return []
+    others: list[list[QtCore.QPointF]] = []
+    for other in _wires(sheet):
+        try:
+            if str(other.Name) == own_name:
+                continue
+        except (ReferenceError, RuntimeError, AttributeError):
+            continue
+        line = _wirePolyline(sheet, other)
+        if line:
+            others.append(line)
+    if not others:
+        return []
+    dots: list[QtCore.QPointF] = []
+    for end in (own[0], own[-1]):
+        for line in others:
+            hit = any(
+                _pointSegmentDistance(end, line[i], line[i + 1]) <= tol
+                for i in range(len(line) - 1)
+            )
+            if hit:
+                dots.append(end)
+                break
+    return dots
+
+
 def connectionReport(sheet: Any) -> str:
     """Human-readable check result (empty problems = success line)."""
     labels: dict[str, str] = {}
