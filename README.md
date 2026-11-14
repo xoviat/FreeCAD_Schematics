@@ -202,6 +202,23 @@ sheetData.MinorGridLineStyle = 1 # Solid style
 
 # Development
 
+### Environment setup (type check, lint, editor)
+
+Requires **Python 3.11** (matches FreeCAD's embedded interpreter). From the repository root:
+
+```
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt      # macOS / Linux
+.venv\Scripts\python -m pip install -r requirements-dev.txt  # Windows
+```
+
+`requirements-dev.txt` pins mypy, ruff, basedpyright and the PySide6/FreeCAD type stubs.
+The installed PySide6 is for **type checking only** (its `.pyi` files); at runtime the
+workbench uses the PySide6 bundled with FreeCAD. All tool configuration (`mypy.ini`,
+`pyrightconfig.json`, `pyproject.toml`, `.zed/`) is relative to the repository root, so
+nothing here is machine-specific. The commands below use the Windows form
+(`.venv/Scripts/...`); substitute `.venv/bin/...` elsewhere.
+
 ## Keyboard shortcuts (KiCad-compatible)
 
 The sheet view follows the KiCad schematic editor's default hotkeys so muscle memory transfers:

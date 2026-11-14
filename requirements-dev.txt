@@ -1,0 +1,18 @@
+# Development/test tooling for the Schematics workbench.
+# Python 3.11 matches FreeCAD's embedded interpreter.
+#
+#   python -m venv .venv
+#   .venv/bin/python -m pip install -r requirements-dev.txt   (macOS/Linux)
+#   .venv\Scripts\python -m pip install -r requirements-dev.txt   (Windows)
+#
+# The PySide6 install exists for type checking only (its .pyi files);
+# at runtime the workbench uses the PySide6 bundled with FreeCAD.
+
+mypy==2.4.1
+ruff==0.17.5
+basedpyright==1.40.2
+
+# Type stubs consumed by mypy / basedpyright
+freecad-stubs==1.0.21
+PySide6==6.12.0
+PySide6-stubs==6.7.3.0
