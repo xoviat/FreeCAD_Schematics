@@ -139,31 +139,46 @@ step("transform commands (KiCad R/Shift+R/X/Y)", t_transforms)
 def t_designators():
     from Schematics.Features.Items.Symbol import Symbol
     from Schematics.Features.Utils.Annotate import (
+        GROUP_PREFIXES,
         annotateSheet,
         nextDesignator,
+        refPrefix,
     )
     syms = [o for o in FreeCAD.ActiveDocument.Objects
             if getattr(o, "Type", "") == "Resistor"]
     assert syms, "no resistor placed"
     first = syms[0]
-    # Auto-assigned on placement: Resistor.svg carries schematics:ref="R"
-    assert first.Designator == "R1", first.Designator
-    # Value defaults to the library name (hidden while it equals it)
+    # Placement shows the KiCad-style placeholder: prefix from
+    # schematics:ref (Resistor.svg has "R"), else the group table
+    assert first.Designator == "R?", first.Designator
     assert first.Value == "Resistor", first.Value
+    assert refPrefix(first) == "R", refPrefix(first)
+    assert GROUP_PREFIXES.get("Resistors") == "R", GROUP_PREFIXES
 
     Symbol.typ = "Resistor"
     Symbol.grp = "Resistors"
     Symbol.std = "GOST"
     second = Symbol(160, 90, sheet)
+    assert second.Designator == "R?", second.Designator
+
+    # Annotate assigns numbers; placeholders consume none (R1, R2 in order)
+    assigned, skipped = annotateSheet(sheet)
+    assert assigned == 2, (assigned, skipped)
+    assert first.Designator == "R1", first.Designator
     assert second.Designator == "R2", second.Designator
 
-    # Annotate fills a cleared designator without collisions
+    # a cleared designator refills without collisions
     first.Designator = ""
     assigned, _skipped = annotateSheet(sheet)
     assert assigned == 1, assigned
     assert first.Designator == "R1", first.Designator
-    assert second.Designator == "R2", second.Designator
     assert nextDesignator("R", {"R1", "R2"}) == "R3"
+
+    # a placeholder's own prefix wins over library metadata ("K?" -> K1)
+    first.Designator = "K?"
+    annotateSheet(sheet)
+    assert first.Designator == "K1", first.Designator
+    first.Designator = "R1"   # restore the state later steps expect
     FreeCAD.ActiveDocument.recompute()
 step("designators + annotation (KiCad-style)", t_designators)
 

@@ -51,10 +51,17 @@ Hydraulic, Pneumatic, Signal) plus per-wire stroke style (StrokeWidth / StrokeDa
 
 ### Designators and values
 
-Symbols carry KiCad-style `Designator` (K1, R3) and `Value` fields in the property tab.
-On placement a symbol is annotated automatically when its library entry defines a reference
-prefix (`schematics:ref`, set in the symbol manager's pin editor - `Resistor` ships with `R`).
-The **Annotate sheet** command fills any remaining empty designators without collisions.
+Symbols carry KiCad-style `Designator` (K1, R3) and `Value` fields in the property tab, and
+annotation follows KiCad's two-step flow:
+
+1. **Placement** shows a placeholder - `R?`, `K?`, `?` - drawn above the symbol. The prefix
+   comes from the symbol's library entry (`schematics:ref`, set in the pin editor) or, until
+   one is set, from the store group (Resistors→R, Realys→K, Diodes→VD, Transistors→VT,
+   Lamps→H, Commutation→S).
+2. **Annotate sheet** replaces placeholders with the smallest free number per prefix
+   (`R?` → R1, R2, ...). Placeholders consume no numbers, and a placeholder's own prefix
+   wins if the library metadata changed since placement.
+
 The designator is drawn above the symbol and the value below it; the value stays hidden
 while it equals the library name, exactly like KiCad's default fields.
 

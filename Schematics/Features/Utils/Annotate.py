@@ -19,9 +19,22 @@ from typing import Any
 
 from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
 
+#: Fallback reference prefixes by store group (GOST conventions) for
+#: symbols whose library entry has no schematics:ref yet. The pin
+#: editor's ref always wins over this table.
+GROUP_PREFIXES: dict[str, str] = {
+    "Resistors": "R",
+    "Realys": "K",        # relays / contactors
+    "Diodes": "VD",
+    "Transistors": "VT",
+    "Lamps": "H",
+    "Commutation": "S",   # switches and buttons
+}
+
 
 def refPrefix(obj: Any, catalog: SymbolCatalog | None = None) -> str:
-    """Reference prefix (R, K, Y, ...) from the symbol's metadata."""
+    """Reference prefix (R, K, Y, ...) from the symbol's metadata,
+    falling back to the group table; empty when nothing is known."""
     try:
         standard = str(obj.Standard)
         group = str(obj.Group)
@@ -32,13 +45,16 @@ def refPrefix(obj: Any, catalog: SymbolCatalog | None = None) -> str:
         return ""
     cat = catalog if catalog is not None else SymbolCatalog(standard)
     entry = cat.find(typ, group, standard)
-    if entry is None:
-        return ""
-    return cat.meta(entry).ref
+    if entry is not None:
+        meta_ref = cat.meta(entry).ref
+        if meta_ref:
+            return meta_ref
+    return GROUP_PREFIXES.get(group, "")
 
 
 def takenDesignators(sheet: Any) -> set[str]:
-    """All designators already used on a sheet (for collision-free picks)."""
+    """All *numbered* designators already used on a sheet (placeholders
+    ending in '?' are pending, they consume no numbers)."""
     taken: set[str] = set()
     try:
         elements = list(sheet.Elements)
@@ -46,7 +62,7 @@ def takenDesignators(sheet: Any) -> set[str]:
         return taken
     for element in elements:
         designator = getattr(element, "Designator", "")
-        if designator:
+        if designator and not str(designator).endswith("?"):
             taken.add(str(designator))
     return taken
 
@@ -60,8 +76,10 @@ def nextDesignator(prefix: str, taken: set[str]) -> str:
 
 
 def autoDesignate(obj: Any, sheet: Any, catalog: SymbolCatalog | None = None) -> str:
-    """Annotate a freshly placed symbol. Returns the designator, or ""
-    when nothing was assigned (already set, no sheet, or no prefix)."""
+    """Mark a freshly placed symbol with a KiCad-style placeholder
+    (``R?`` - prefix plus question mark; bare ``?`` when no prefix is
+    known). Numbers are assigned by :func:`annotateSheet`, like KiCad's
+    Annotate step. Returns the placeholder, or "" when nothing was set."""
     try:
         if getattr(obj, "Designator", ""):
             return str(obj.Designator)
@@ -74,22 +92,21 @@ def autoDesignate(obj: Any, sheet: Any, catalog: SymbolCatalog | None = None) ->
         sheet = tryToGetSchemeFromActiveWindow()
     if sheet is None:
         return ""
-    prefix = refPrefix(obj, catalog)
-    if not prefix:
-        return ""
-    designator = nextDesignator(prefix, takenDesignators(sheet))
+    placeholder = (refPrefix(obj, catalog) or "") + "?"
     try:
-        obj.Designator = designator
+        obj.Designator = placeholder
     except (ReferenceError, RuntimeError, AttributeError):
         return ""
-    return designator
+    return placeholder
 
 
 def annotateSheet(sheet: Any, catalog: SymbolCatalog | None = None) -> tuple[int, int]:
-    """Fill empty designators on a sheet using each symbol's prefix.
+    """Assign numbers to pending symbols on a sheet, KiCad-style:
+    replaces ``R?`` placeholders (and empty designators) with the
+    smallest free number per prefix.
 
     Returns ``(assigned, skipped)`` where skipped counts symbols whose
-    library entry has no reference prefix yet.
+    placeholder/library prefix is still unknown.
     """
     cat = catalog if catalog is not None else SymbolCatalog()
     assigned = 0
@@ -104,9 +121,14 @@ def annotateSheet(sheet: Any, catalog: SymbolCatalog | None = None) -> tuple[int
             designator = getattr(element, "Designator", None)
             if designator is None:
                 continue   # not a symbol (wire, rectangle, text, ...)
-            if designator:
-                continue   # already annotated
-            prefix = refPrefix(element, cat)
+            designator = str(designator)
+            if designator and not designator.endswith("?"):
+                continue   # already numbered
+            # A placeholder carries its own prefix ("K?" stays K even if
+            # the library metadata changed since placement).
+            prefix = designator[:-1] if designator.endswith("?") else ""
+            if not prefix:
+                prefix = refPrefix(element, cat)
             if not prefix:
                 skipped += 1
                 continue
