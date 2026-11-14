@@ -130,6 +130,28 @@ def unwiredPins(sheet: Any) -> list[tuple[str, str]]:
     return [key for key in sorted(pinPositions(sheet)) if key not in connected]
 
 
+def wireTag(wire: Any) -> str:
+    """The wire's label ( means unlabelled)."""
+    try:
+        return str(getattr(wire, "Tag", "") or "")
+    except (ReferenceError, RuntimeError, AttributeError):
+        return ""
+
+
+def labeledNets(sheet: Any) -> dict[str, list[str]]:
+    """{label: [wire object Names]} for all labelled wires."""
+    nets: dict[str, list[str]] = {}
+    for wire in _wires(sheet):
+        tag = wireTag(wire)
+        if not tag:
+            continue
+        try:
+            nets.setdefault(tag, []).append(str(wire.Name))
+        except (ReferenceError, RuntimeError, AttributeError):
+            continue
+    return nets
+
+
 def danglingEnds(sheet: Any) -> list[tuple[str, int]]:
     """Wire endpoints resting on neither a pin nor another wire end.
 
@@ -137,6 +159,9 @@ def danglingEnds(sheet: Any) -> list[tuple[str, int]]:
     """
     tol = connectionTolerance(sheet)
     pins = list(pinPositions(sheet).values())
+    # A labelled wire's ends terminate a net on purpose (KiCad labels):
+    # only unlabelled ends can be "floating".
+    labelled = {str(wire.Name) for wire in _wires(sheet) if wireTag(wire)}
     ends: list[tuple[str, int, QtCore.QPointF]] = []
     for wire in _wires(sheet):
         try:
@@ -148,6 +173,8 @@ def danglingEnds(sheet: Any) -> list[tuple[str, int]]:
 
     dangling: list[tuple[str, int]] = []
     for wireName, index, position in ends:
+        if wireName in labelled:
+            continue
         if any(
             math.hypot(position.x() - p.x(), position.y() - p.y()) <= tol
             for p in pins
@@ -190,5 +217,8 @@ def connectionReport(sheet: Any) -> str:
         which = "first" if index == 0 else "last"
         lines.append("wire %s: %s end is floating" % (wireName, which))
     if not lines:
-        return "All pins and wire ends are connected.\n"
+        lines.append("All pins and wire ends are connected.")
+    nets = labeledNets(sheet)
+    for label in sorted(nets):
+        lines.append("net %s: %s" % (label, ", ".join(sorted(nets[label]))))
     return "\n".join(lines) + "\n"

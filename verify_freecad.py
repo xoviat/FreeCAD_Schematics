@@ -281,6 +281,41 @@ def t_connectivity():
     dialog.close()   # no deleteLater: races the hard os._exit()
 step("connectivity model + connection check", t_connectivity)
 
+def t_wire_labels():
+    from Schematics.Features.Utils.Connectivity import (
+        connectionReport,
+        danglingEnds,
+        labeledNets,
+        unwiredPins,
+    )
+
+    wires = [o for o in FreeCAD.ActiveDocument.Objects
+             if getattr(o, "Type", "") == "Wire"]
+    assert len(wires) == 2, len(wires)
+    unlabelled = wires[0]   # the original floating test wire
+    tagged = wires[1]
+
+    # label grows the item's bounding rect (room for the text)
+    plainHeight = tagged.Proxy.item.boundingRect().height()
+    tagged.Tag = "X1"
+    taggedHeight = tagged.Proxy.item.boundingRect().height()
+    assert taggedHeight > plainHeight, (plainHeight, taggedHeight)
+    assert labeledNets(sheet) == {"X1": [tagged.Name]}, labeledNets(sheet)
+
+    # a labelled wire's ends terminate a net on purpose: not floating
+    unlabelled.Tag = "X1"
+    assert danglingEnds(sheet) == [], danglingEnds(sheet)
+
+    report = connectionReport(sheet)
+    assert "net X1" in report, report
+    # geometry unchanged: R2's pins are still unwired
+    remaining = unwiredPins(sheet)
+    assert len(remaining) == 2, remaining
+
+    unlabelled.Tag = ""   # back to the connectivity-step state
+    assert danglingEnds(sheet) != []
+step("wire labels (Tag) + labelled nets", t_wire_labels)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()

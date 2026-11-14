@@ -56,6 +56,13 @@ The **Annotate sheet** command fills any remaining empty designators without col
 The designator is drawn above the symbol and the value below it; the value stays hidden
 while it equals the library name, exactly like KiCad's default fields.
 
+### Wire labels
+
+Select a wire and press `L` (KiCad's Add Label): the tag is drawn at the wire's midpoint,
+joins same-labelled wires into one named net in the connection check, and marks the wire's
+ends as intentionally terminated instead of floating. The tag lives in the wire's `Tag`
+property (the property name `Label` is taken by FreeCAD's built-in tree label).
+
 ### Check connections
 
 **Check connections** runs a geometric ERC-lite: pins with no wire endpoint and wire ends
@@ -185,6 +192,7 @@ The sheet view follows the KiCad schematic editor's default hotkeys so muscle me
 | `R` / `Shift+R` | Rotate selection 90° counter-clockwise / clockwise |
 | `X` / `Y` | Mirror selection horizontally / vertically |
 | `T` | Add text |
+| `L` | Add label to wire (conductor tag) |
 | `I` | Add line |
 | `Del` | Delete selection |
 | `Esc` | Cancel active tool (wire, placement) / clear selection |

@@ -92,6 +92,13 @@ class WireFeature(StrokeDataProperties, SchemeObjectFeature):
             'Conductor class of this wire', 8 + 16,
         ).WireType = list(WIRE_TYPES)
         obj.WireType = WIRE_TYPES[0]
+        # Label (not "Label": that name is FreeCAD's built-in tree label).
+        # A non-empty tag joins same-labelled wires into one net and marks
+        # the wire's ends as intentionally terminated (KiCad net labels).
+        obj.addProperty(
+            'App::PropertyString', 'Tag', 'Data',
+            'Wire label / conductor tag (e.g. X1)', 8 + 16,
+        ).Tag = ''
         # Size is derived from Points; wires do not rotate about a center.
         obj.setPropertyStatus("Width", "ReadOnly")
         obj.setPropertyStatus("Height", "ReadOnly")
@@ -100,7 +107,10 @@ class WireFeature(StrokeDataProperties, SchemeObjectFeature):
     def onDataPropertyChanged(self, obj: Any, prop: str) -> None:
         if prop == "Points":
             self._updateSize(obj)
-        elif prop == "WireType" and hasattr(self, "item"):
+        elif prop in ("WireType", "Tag") and hasattr(self, "item"):
+            if prop == "Tag":
+                # The label grows the bounding rect (room for the text).
+                self.item.prepareGeometryChange()
             self.item.update()
 
     @staticmethod
@@ -173,10 +183,19 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         xs: list[float] = [p.x() for p in pts]
         ys: list[float] = [p.y() for p in pts]
         m: float = self._strokeWidth() / 2.0 + 3.0   # stroke + anchor markers
+        top_pad: float = m + self._labelHeight()      # room for the label
         return QtCore.QRectF(
-            min(xs) - m, min(ys) - m,
-            (max(xs) - min(xs)) + 2 * m, (max(ys) - min(ys)) + 2 * m,
+            min(xs) - m, min(ys) - top_pad,
+            (max(xs) - min(xs)) + 2 * m,
+            (max(ys) - min(ys)) + top_pad + m,
         )
+
+    def _labelHeight(self) -> float:
+        """Extra top space needed by the label (0 when there is none)."""
+        try:
+            return 8.0 if str(self.obj.Tag or "") else 0.0
+        except (ReferenceError, RuntimeError, AttributeError):
+            return 0.0
 
     def shape(self) -> QtGui.QPainterPath:
         path = QtGui.QPainterPath()
@@ -230,6 +249,23 @@ class WireItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         if self.isSelected():
             for p in pts:
                 self.drawAnchor(g, p.x(), p.y())
+
+        # Label at the middle vertex, above the line (KiCad net-label style)
+        try:
+            tag = str(self.obj.Tag or "")
+        except (ReferenceError, RuntimeError, AttributeError):
+            tag = ""
+        if tag:
+            mid = pts[len(pts) // 2]
+            font = g.font()
+            font.setPixelSize(5)
+            g.setFont(font)
+            g.drawText(
+                QtCore.QRectF(mid.x() - 40.0, mid.y() - 9.0, 80.0, 8.0),
+                int(QtCore.Qt.AlignmentFlag.AlignHCenter
+                    | QtCore.Qt.AlignmentFlag.AlignBottom),
+                tag,
+            )
 
         g.endNativePainting()
         g.restore()

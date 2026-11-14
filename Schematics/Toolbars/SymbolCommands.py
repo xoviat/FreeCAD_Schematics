@@ -309,6 +309,27 @@ FunctionCommand('VFlip', vFlip, "Mirror vertically", accel='Y')
 # KiCad-compatible rotations (R = CCW, Shift+R = CW)
 FunctionCommand('TurnLeft', turnLeft, "Turn left to 90 degrees", accel='R')
 FunctionCommand('TurnRight', turnRight, "Turn right to 90 degrees", accel='Shift+R')
+
+
+def setWireLabel(obj):
+    """L hotkey: edit the label (Tag) of the selected wire - KiCad's
+    Add Label, scoped to wires until labels exist for other items."""
+    if getattr(obj, "Type", "") != "Wire":
+        return
+    from PySide6 import QtWidgets as _QtW
+    current = str(getattr(obj, "Tag", "") or "")
+    text, ok = _QtW.QInputDialog.getText(
+        FreeCAD.Gui.getMainWindow(),
+        "Wire label",
+        "Label (conductor tag, joins same-labelled wires):",
+        _QtW.QLineEdit.EchoMode.Normal,
+        current,
+    )
+    if ok:
+        obj.Tag = text.strip()
+
+
+FunctionCommand('LabelWire', setWireLabel, "Add label to wire", accel='L')
 #lockTransformations
 #unlockTransformations
 
