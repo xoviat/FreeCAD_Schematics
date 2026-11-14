@@ -145,6 +145,29 @@ sheetData.MinorGridLineStyle = 1 # Solid style
 
 # Development
 
+## Keyboard shortcuts (KiCad-compatible)
+
+The sheet view follows the KiCad schematic editor's default hotkeys so muscle memory transfers:
+
+| Key | Action |
+| --- | --- |
+| `A` | Place symbol… (chooser: search, preview, pin list) |
+| `W` | Draw wire |
+| `R` / `Shift+R` | Rotate selection 90° counter-clockwise / clockwise |
+| `X` / `Y` | Mirror selection horizontally / vertically |
+| `T` | Add text |
+| `I` | Add line |
+| `Del` | Delete selection |
+| `Esc` | Cancel active tool (wire, placement) / clear selection |
+| `Home` | Zoom to fit the sheet |
+| `Enter` / double-click | Finish wire, place the chosen symbol |
+| `Ctrl+C/X/V`, `Ctrl+Z/Y` | Clipboard and undo/redo (FreeCAD defaults) |
+
+Hotkeys are declared as the `Accel` resource on each command and only fire while a
+scheme window is active. FreeCAD's shortcut manager still allows rebinding them.
+Keys for features that do not exist yet (junction `J`, labels `L`, no-connect `Q`,
+properties dialog `E`, cursor-follow move `M`) are deliberately not bound.
+
 * `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
 * Type check: `python -m mypy Init.py InitGui.py SCUtils.py Schematics verify_freecad.py verify_imports.py` — must stay clean.
 * Lint: `ruff check .` — rules are pinned in `pyproject.toml` (ruff's defaults have broadened across releases).

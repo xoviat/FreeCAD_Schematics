@@ -21,18 +21,18 @@ def toBack(obj):
     item.setZValue(-0.8)
 
 def hFlip(obj):
-    """Flip horizontally"""
+    """Flip horizontally (KiCad X: mirror about the item's centre)."""
     item = obj.Proxy.item
-    item.setTransform(QtGui.QTransform().scale(-1, 1), combine=False)
-    if hasattr(item, "setAnchor"):
-        item.setAnchor(True) # !!! Update all transformations with  combine=False
+    # combine=True keeps the anchor translate set by setAnchor()/setMode:
+    # scale(-1,1) applied after it mirrors about the item's centre.
+    # (The old setAnchor(True) call raised TypeError: setAnchor takes no
+    # arguments, and re-running it would erase the flip anyway.)
+    item.setTransform(QtGui.QTransform().scale(-1, 1), combine=True)
 
 def vFlip(obj):
-    """Flip vertically"""
+    """Flip vertically (KiCad Y: mirror about the item's centre)."""
     item = obj.Proxy.item
-    item.setTransform(QtGui.QTransform().scale(1, -1), combine=False)
-    if hasattr(item, "setAnchor"):
-        item.setAnchor(True) # !!! Update all transformations with  combine=False
+    item.setTransform(QtGui.QTransform().scale(1, -1), combine=True)
 
 def turnLeft(obj):
     """Turn left to 90 degrees"""

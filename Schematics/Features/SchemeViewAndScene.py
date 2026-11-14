@@ -253,7 +253,7 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         super().mouseDoubleClickEvent(event)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        # Enter finishes the wire, Escape cancels it.
+        # Enter finishes the wire, Escape cancels it (KiCad: finish/cancel).
         if self.drawingWire:
             if event.key() in (QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter):
                 self.finishWireDraw()
@@ -263,7 +263,31 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
                 self.cancelWireDraw()
                 event.accept()
                 return
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            # KiCad: Esc cancels the current tool, else clears the selection.
+            self._cancelPlacementTool()
+            self.clearSelection()
+            FreeCAD.Gui.Selection.clearSelection()
+            event.accept()
+            return
+        if event.key() == QtCore.Qt.Key.Key_Home:
+            # KiCad: Home zooms to fit the sheet.
+            template = getattr(self, "svg_template", None)
+            if template is not None:
+                rect = template.sceneBoundingRect().adjusted(-20, -20, 20, 20)
+                for view in self.views():
+                    view.fitInView(rect, QtCore.Qt.AspectRatioMode.KeepAspectRatio)
+            event.accept()
+            return
         super().keyPressEvent(event)
+
+    def _cancelPlacementTool(self) -> None:
+        """Reset an active symbol-placement tool (KiCad Esc behaviour)."""
+        for view in self.views():
+            if hasattr(view, "instance"):
+                setattr(view, "instance", None)
+                setattr(view, "currentObj", None)
+                setattr(view, "underCursorItem", None)
 
     def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         self.snapItemsToGrid()
@@ -320,11 +344,7 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         finish, Escape or right-click to cancel."""
         self.drawingWire = True
         self.wirePoints = []
-        for view in self.views():
-            if hasattr(view, "instance"):
-                setattr(view, "instance", None)
-                setattr(view, "currentObj", None)
-                setattr(view, "underCursorItem", None)
+        self._cancelPlacementTool()
         self.update()
 
     def cancelWireDraw(self) -> None:

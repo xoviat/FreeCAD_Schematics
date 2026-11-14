@@ -89,6 +89,72 @@ def t_text_item():
     t.Text = "<html><body>hello</body></html>"
 step("Text item", t_text_item)
 
+def t_symbol_chooser():
+    from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
+    from Schematics.Features.Dialogs.SymbolChooser import SymbolChooser, note_recent
+    cat = SymbolCatalog()
+    entries = cat.all()
+    assert len(entries) >= 5, "catalog found %d symbols" % len(entries)
+    assert "Resistors" in cat.groups(), cat.groups()
+    withpins = [e for e in entries if len(cat.pins(e)) >= 2]
+    assert withpins, "no symbol exposes >= 2 pins"
+    note_recent(withpins[0].key)
+    dlg = SymbolChooser(catalog=cat)
+    assert dlg.tree.topLevelItemCount() >= 2, dlg.tree.topLevelItemCount()
+    # search filter must not hide everything
+    dlg.search.setText("res")
+    visible = sum(
+        1 for i in range(dlg.tree.topLevelItemCount())
+        for j in range(-1, dlg.tree.topLevelItem(i).childCount())
+        if not (
+            dlg.tree.topLevelItem(i).isHidden() if j < 0
+            else dlg.tree.topLevelItem(i).child(j).isHidden()
+        )
+    )
+    assert visible >= 1, "search filter hid everything"
+    assert isinstance(cat.meta(withpins[0]).description, str)
+    # No deleteLater()/processEvents() here: a pending deferred delete
+    # races this script's hard os._exit(0) and trips a GILState fatal
+    # (exit 127). The dialog is destroyed by refcount on return instead;
+    # the real command path uses a plain local + exec() and never defers.
+    dlg.close()
+step("symbol catalog + chooser dialog", t_symbol_chooser)
+
+def t_transforms():
+    from Schematics.Features.Functions.Transforms import hFlip, vFlip, turnLeft, turnRight
+    s = [o for o in FreeCAD.ActiveDocument.Objects if getattr(o, "Type", "") == "Resistor"][0]
+    before = float(s.Rotation.Value)
+    turnLeft(s)
+    turnRight(s)
+    assert float(s.Rotation.Value) == before, (before, s.Rotation.Value)
+    # Mirrors must not raise: setAnchor(True) used to be a TypeError, and a
+    # Python error escaping into Qt is exactly how the delete-key AV happened
+    hFlip(s)
+    vFlip(s)
+    hFlip(s)
+    vFlip(s)   # double flip restores the original transform
+    FreeCAD.ActiveDocument.recompute()
+step("transform commands (KiCad R/Shift+R/X/Y)", t_transforms)
+
+def t_shortcuts():
+    from PySide6 import QtGui, QtWidgets
+    mainWin = Gui.getMainWindow()
+    found: dict[str, str] = {}
+    for act in mainWin.findChildren(QtGui.QAction):
+        sc = act.shortcut().toString()
+        if sc:
+            found[sc] = act.text()
+    for key, needle in (
+        ("A", "symbol"), ("W", "wire"),
+        ("R", "Turn left"), ("Shift+R", "Turn right"),
+        ("X", "Mirror horizontally"), ("Y", "Mirror vertically"),
+        ("T", "text"), ("I", "line"),
+    ):
+        text = found.get(key, "")
+        assert needle.lower() in text.lower(), \
+            "hotkey %s -> %r missing (got %r)" % (key, needle, text)
+step("KiCad-style hotkeys registered", t_shortcuts)
+
 def t_view_props():
     v = sheet.ViewObject
     v.GridVisible = False

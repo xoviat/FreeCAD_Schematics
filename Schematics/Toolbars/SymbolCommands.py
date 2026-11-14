@@ -33,6 +33,7 @@ class SCDrawWire:
             'Pixmap': getToolbarIconPath('DrawWireMode.svg'),
             'MenuText': "Draw wire",
             'ToolTip': "Click to place vertices, double-click or Enter to finish, Escape or right-click to cancel",
+            'Accel': 'W',
         }
 
     def Activated(self) -> None:
@@ -45,27 +46,67 @@ class SCDrawWire:
 
 addCommand('SCDrawWire', SCDrawWire())
 
+
+class SCChooseSymbol:
+    """ Choose a symbol from the store and place it (KiCad-style) """
+
+    def GetResources(self) -> dict[str, str]:
+        return {
+            'Pixmap': getToolbarIconPath('ChooseSymbol.svg'),
+            'MenuText': "Place symbol…",
+            'ToolTip': "Search, preview and place a symbol from the symbol store",
+            'Accel': 'A',
+        }
+
+    def Activated(self) -> None:
+        scheme = tryToGetSchemeFromActiveWindow()
+        if scheme is None:
+            return
+        from Schematics.Features.Dialogs.SymbolChooser import SymbolChooser
+        dialog = SymbolChooser(parent=FreeCAD.Gui.getMainWindow())
+        if not dialog.exec():   # QDialog.Accepted == 1, Rejected == 0
+            return
+        entry = dialog.selectedEntry()
+        if entry is None:
+            return
+        # Same placement path as the per-symbol toolbar buttons.
+        Symbol.typ = entry.name
+        Symbol.grp = entry.group
+        Symbol.std = entry.standard
+        StartDraw(Symbol)
+
+    def IsActive(self) -> bool:
+        return activeWindowIsScheme()
+
+
+addCommand('SCChooseSymbol', SCChooseSymbol())
+addCommand('Separator')
+
 class PrimitiveCommand:
     """ Add primitive """
 
-    def __init__(self, name, inst, group=None):
+    def __init__(self, name, inst, group=None, accel: str | None = None):
         self.name = name
         self.inst = inst
         self.group = group
+        self.accel = accel
         addCommand('SC' + self.name, self)
 
-    def GetResources(self):
+    def GetResources(self) -> dict[str, str]:
         iconPath = getToolbarIconPath(f"{self.name}.svg")
         if not os.path.exists(iconPath):
             iconPath = getSymbolIconPath(f"{self.name}.svg")
         if not os.path.exists(iconPath) and self.group is not None:
             iconPath = getSymbolPath(f"{os.path.join('GOST',os.path.join(self.group,self.name))}.svg")
         self.iconPath = iconPath
-        return {
+        resources: dict[str, str] = {
             'Pixmap': iconPath,
             'MenuText': "Add " + self.name,
-            'ToolTip': "Add " + self.name
+            'ToolTip': "Add " + self.name,
         }
+        if self.accel:
+            resources['Accel'] = self.accel   # KiCad-compatible hotkey
+        return resources
 
     def Activated(self):
         self.inst.typ = None
@@ -81,8 +122,8 @@ class PrimitiveCommand:
 PrimitiveCommand('Polyline', Polyline)
 PrimitiveCommand('Rectangle', Rectangle)
 PrimitiveCommand('Ellipse', Ellipse)
-PrimitiveCommand('Line', Line)
-PrimitiveCommand('Text', Text)
+PrimitiveCommand('Line', Line, accel='I')
+PrimitiveCommand('Text', Text, accel='T')
 
 addCommand('Separator')
 
@@ -104,21 +145,25 @@ addCommand('Separator')
 class FunctionCommand:
     """ Item(s) change command class """
 
-    def __init__(self, name, func=None, text=None):
+    def __init__(self, name, func=None, text=None, accel: str | None = None):
         self.name = name
         self.func = func
         self.text = text
+        self.accel = accel
         addCommand('SC' + self.name, self)
 
     def GetDescription(self):
-        return self.text
+        return self.text or ""
 
-    def GetResources(self):
-        return {
+    def GetResources(self) -> dict[str, str]:
+        resources: dict[str, str] = {
             'Pixmap': getToolbarIconPath(self.name + '.svg'),
             'MenuText': self.GetDescription(),
-            'ToolTip': self.GetDescription()
+            'ToolTip': self.GetDescription(),
         }
+        if self.accel:
+            resources['Accel'] = self.accel   # KiCad-compatible hotkey
+        return resources
 
     def Activated(self):
         scheme = tryToGetSchemeFromActiveWindow()
@@ -134,10 +179,12 @@ class FunctionCommand:
 
 FunctionCommand('ToFront', toFront, "Bring to front")
 FunctionCommand('ToBottom', toBack, "Bring to back")
-#FunctionCommand('HFlip', hFlip, "Flip horizontally")
-#FunctionCommand('VFlip', vFlip, "Flip vertically")
-FunctionCommand('TurnLeft', turnLeft, "Turn left to 90 degrees")
-FunctionCommand('TurnRight', turnRight, "Turn right to 90 degrees")
+# KiCad-compatible mirrors (X / Y)
+FunctionCommand('HFlip', hFlip, "Mirror horizontally", accel='X')
+FunctionCommand('VFlip', vFlip, "Mirror vertically", accel='Y')
+# KiCad-compatible rotations (R = CCW, Shift+R = CW)
+FunctionCommand('TurnLeft', turnLeft, "Turn left to 90 degrees", accel='R')
+FunctionCommand('TurnRight', turnRight, "Turn right to 90 degrees", accel='Shift+R')
 #lockTransformations
 #unlockTransformations
 
