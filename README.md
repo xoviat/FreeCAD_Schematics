@@ -175,6 +175,14 @@ them); the table edits names and coordinates, and Description / Reference prefix
 `schematics:description` / `schematics:ref` metadata. Stroke color, width and fill follow
 the selection (or become the defaults for the next shape).
 
+Placement snaps to the **ends of existing lines** (line ends, polyline vertices and rect
+corners) before falling back to the grid - so pins land exactly on wire stubs. **Hold
+`Ctrl` while clicking or dragging for free placement** (bypasses all snapping; the Snap
+toggle off does the same). `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut and paste the selected
+shape or pin at the cursor (pasting on the original spot nudges it clear); pin copies get
+the next free pin number. The pin table and text fields keep their native Qt copy/paste
+when they have focus.
+
 Artwork brought in from external SVG tools (`<path>`/`<g>` groups) renders as a static
 backdrop - the built-in tools edit line/rect/circle/ellipse/polyline/text shapes, so
 existing symbols keep their original artwork byte-for-byte while pins and metadata stay

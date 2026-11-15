@@ -629,7 +629,7 @@ def t_symbol_manager():
     import os
     import shutil
     import tempfile
-    from PySide6 import QtWidgets
+    from PySide6 import QtCore, QtWidgets
     from Schematics.Features.Dialogs.SymbolChooser import SymbolPreview
     from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
     from Schematics.Features.Dialogs.SymbolManager import (
@@ -711,6 +711,42 @@ def t_symbol_manager():
         _data, raw = extractPins(text)
         assert len(raw) == 2, raw
         assert 'schematics:description="roundtrip test"' in text
+
+        # endpoint snap (line ends), Ctrl escape hatch, grid fallback
+        canvas = editor.canvas
+        placed = canvas._placePoint(QtCore.QPointF(3.04, 4.03), False)
+        assert (placed.x(), placed.y()) == (3.0, 4.0), placed
+        free = canvas._placePoint(QtCore.QPointF(3.04, 4.03), True)
+        assert (free.x(), free.y()) == (3.04, 4.03), free
+        gridded = canvas._placePoint(QtCore.QPointF(2.02, 2.02), False)
+        assert (gridded.x(), gridded.y()) == (2.0, 2.0), gridded
+
+        # copy / paste / cut: shapes and pins
+        line_idx = next(
+            i for i, e in enumerate(canvas.elements)
+            if isinstance(e, Shape) and e.kind == "line"
+        )
+        canvas.selectShape(line_idx)
+        assert canvas.copySelection()
+        count = len(canvas.elements)
+        assert canvas.pasteClipboard()
+        assert len(canvas.elements) == count + 1
+        pasted = canvas.selectedShape()
+        assert pasted is not None and pasted.kind == "line"
+        # pasted at the viewBox center (setDocument's initial cursor):
+        # translated by (center - anchor), anchor = the line's first point
+        center = canvas.viewBoxRect().center()
+        dx = center.x() - 1.0
+        dy = center.y() - 2.0
+        assert list(pasted.coords) == [
+            1.0 + dx, 2.0 + dy, 3.0 + dx, 4.0 + dy
+        ], pasted.coords
+        assert canvas.cutSelection()
+        assert len(canvas.elements) == count
+        canvas.selectPin(0)
+        assert canvas.copySelection()
+        assert canvas.pasteClipboard()
+        assert len(canvas.pins) == 3, canvas.pins
 
         # invalid pin names must be rejected (loader charset), not written
         bad = SymbolEditor(

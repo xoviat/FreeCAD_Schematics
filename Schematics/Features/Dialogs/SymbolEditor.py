@@ -120,6 +120,7 @@ class SymbolCanvas(QtWidgets.QWidget):
 
         self._drag = _Drag.NONE
         self._dragStart = QtCore.QPointF(0.0, 0.0)
+        self._placedStart = QtCore.QPointF(0.0, 0.0)
         self._widgetStart = QtCore.QPointF(0.0, 0.0)
         self._handle = -1
         self._dragShape: Shape | None = None
@@ -134,6 +135,7 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._undo: list[tuple[list[DrawingElement], list[SymbolPin]]] = []
         self._redo: list[tuple[list[DrawingElement], list[SymbolPin]]] = []
         self._drawingDirty = False
+        self._clip: Shape | SymbolPin | None = None
 
         self._setFont()
 
@@ -155,6 +157,7 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._undo.clear()
         self._redo.clear()
         self._drawingDirty = False
+        self._lastCursor = self._viewBox.center()
         self._cancelPending()
         self.changed.emit()
         self.selectionChanged.emit()
@@ -340,6 +343,58 @@ class SymbolCanvas(QtWidgets.QWidget):
             self.selectionChanged.emit()
             self.update()
 
+    # ------------------------------------------------------------------
+    # clipboard (canvas-local: shapes and pins)
+    # ------------------------------------------------------------------
+    def copySelection(self) -> bool:
+        """Copy the selected shape or pin; False when nothing is selected."""
+        shape = self.selectedShape()
+        if shape is not None:
+            self._clip = _cloneShape(shape)
+            return True
+        idx = self.selectedPinIndex()
+        if idx is not None:
+            pin = self._pins[idx]
+            self._clip = SymbolPin(pin.name, pin.x, pin.y)
+            return True
+        return False
+
+    def cutSelection(self) -> bool:
+        """Copy then delete the selection."""
+        if not self.copySelection():
+            return False
+        self.deleteSelection()
+        return True
+
+    def pasteClipboard(self) -> bool:
+        """Paste the clipboard copy at the cursor.  Endpoint/grid snap
+        apply (Ctrl is held for the shortcut itself, so no bypass);
+        pasting onto the original spot nudges by two grid steps."""
+        if isinstance(self._clip, Shape):
+            shape = _cloneShape(self._clip)
+            anchor = _shapeAnchor(shape)
+            target = self._placePoint(self._lastCursor, False)
+            if math.hypot(target.x() - anchor[0], target.y() - anchor[1]) < 1e-6:
+                target = QtCore.QPointF(
+                    target.x() + _SNAP_STEP * 2, target.y() + _SNAP_STEP * 2
+                )
+            self.addShape(
+                _moveShape(shape, target.x() - anchor[0], target.y() - anchor[1])
+            )
+            return True
+        if isinstance(self._clip, SymbolPin):
+            target = self._placePoint(self._lastCursor, False)
+            if (
+                abs(target.x() - self._clip.x) < 1e-6
+                and abs(target.y() - self._clip.y) < 1e-6
+            ):
+                target = QtCore.QPointF(
+                    target.x() + _SNAP_STEP * 2, target.y() + _SNAP_STEP * 2
+                )
+            self.addPinAt(target.x(), target.y())
+            return True
+        return False
+
     def _snapshot(self) -> tuple[list[DrawingElement], list[SymbolPin]]:
         elements: list[DrawingElement] = [
             _cloneShape(e) if isinstance(e, Shape) else e
@@ -381,6 +436,10 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
         self._undo.append(self._snapshot())
         self._restore(self._redo.pop())
+
+    def viewBoxRect(self) -> QtCore.QRectF:
+        """The symbol's coordinate frame (viewBox), for tools and tests."""
+        return QtCore.QRectF(self._viewBox)
 
     def fitView(self) -> None:
         self._zoom = 1.0
@@ -428,6 +487,29 @@ class SymbolCanvas(QtWidgets.QWidget):
 
     def _snapPoint(self, point: QtCore.QPointF) -> QtCore.QPointF:
         return QtCore.QPointF(self._snapVal(point.x()), self._snapVal(point.y()))
+
+    def _placePoint(
+        self, point: QtCore.QPointF, bypass: bool
+    ) -> QtCore.QPointF:
+        """Endpoint snap first (line ends, polyline vertices, rect
+        corners), then the grid.  Holding Ctrl (bypass) - or the Snap
+        toggle being off - places freely."""
+        if bypass or not self._snap:
+            return point
+        tol = _TOL_PX / max(self._scale(), 1e-6)
+        best: QtCore.QPointF | None = None
+        best_d = tol
+        for element in self._elements:
+            if not isinstance(element, Shape):
+                continue
+            for ex, ey in _snapTargets(element):
+                d = math.hypot(point.x() - ex, point.y() - ey)
+                if d <= best_d:
+                    best_d = d
+                    best = QtCore.QPointF(ex, ey)
+        if best is not None:
+            return best
+        return self._snapPoint(point)
 
     def _tolUnits(self) -> float:
         return _TOL_PX / max(self._scale(), 1e-6)
@@ -481,6 +563,9 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._widgetStart = event.position()
         self._dragPushed = False
         self._lastCursor = svg
+        bypass = bool(
+            event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
+        )
 
         if self._tool is Tool.SELECT:
             pin_idx = self._hitPin(svg)
@@ -516,7 +601,8 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
 
         if self._tool is Tool.LINE or self._tool is Tool.RECT:
-            start = self._snapPoint(svg)
+            start = self._placePoint(svg, bypass)
+            self._placedStart = start
             self._drag = _Drag.DRAW
             if self._tool is Tool.LINE:
                 self._pending = Shape(
@@ -537,7 +623,8 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
 
         if self._tool is Tool.CIRCLE:
-            start = self._snapPoint(svg)
+            start = self._placePoint(svg, bypass)
+            self._placedStart = start
             self._drag = _Drag.DRAW
             self._pending = Shape(
                 kind="circle",
@@ -550,7 +637,7 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
 
         if self._tool is Tool.POLYLINE:
-            point = self._snapPoint(svg)
+            point = self._placePoint(svg, bypass)
             if not self._polyPoints or (
                 self._polyPoints[-1] - point
             ).manhattanLength() > 1e-6:
@@ -563,7 +650,7 @@ class SymbolCanvas(QtWidgets.QWidget):
                 self, "Symbol text", "Text:", text="M"
             )
             if ok and text:
-                point = self._snapPoint(svg)
+                point = self._placePoint(svg, bypass)
                 self.addShape(
                     Shape(
                         kind="text",
@@ -576,7 +663,7 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
 
         if self._tool is Tool.PIN:
-            point = self._snapPoint(svg)
+            point = self._placePoint(svg, bypass)
             self.addPinAt(point.x(), point.y())
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -588,6 +675,9 @@ class SymbolCanvas(QtWidgets.QWidget):
     def _move(self, event: QtGui.QMouseEvent) -> None:
         svg = self.toSvg(event.position())
         self._lastCursor = svg
+        bypass = bool(
+            event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
+        )
         if self._drag is _Drag.NONE:
             return
         if self._drag is _Drag.PAN:
@@ -597,30 +687,19 @@ class SymbolCanvas(QtWidgets.QWidget):
             self.update()
             return
         if self._drag is _Drag.DRAW and self._pending is not None:
-            end = self._snapPoint(svg)
+            end = self._placePoint(svg, bypass)
+            x0 = self._placedStart.x()
+            y0 = self._placedStart.y()
             if self._pending.kind == "line":
-                self._pending.coords = [
-                    self._snapVal(self._dragStart.x()),
-                    self._snapVal(self._dragStart.y()),
-                    end.x(), end.y(),
-                ]
+                self._pending.coords = [x0, y0, end.x(), end.y()]
             elif self._pending.kind == "rect":
-                x0 = self._snapVal(self._dragStart.x())
-                y0 = self._snapVal(self._dragStart.y())
                 self._pending.coords = [
                     min(x0, end.x()), min(y0, end.y()),
                     abs(end.x() - x0), abs(end.y() - y0),
                 ]
             else:  # circle
-                radius = math.hypot(
-                    end.x() - self._snapVal(self._dragStart.x()),
-                    end.y() - self._snapVal(self._dragStart.y()),
-                )
-                self._pending.coords = [
-                    self._snapVal(self._dragStart.x()),
-                    self._snapVal(self._dragStart.y()),
-                    radius,
-                ]
+                radius = math.hypot(end.x() - x0, end.y() - y0)
+                self._pending.coords = [x0, y0, radius]
             self.update()
             return
         if self._drag is _Drag.MOVE and self._dragShape is not None:
@@ -628,8 +707,8 @@ class SymbolCanvas(QtWidgets.QWidget):
                 self._pushUndo()
                 self._dragPushed = True
             delta = svg - self._dragStart
-            dx = self._snapVal(delta.x())
-            dy = self._snapVal(delta.y())
+            dx = delta.x() if bypass else self._snapVal(delta.x())
+            dy = delta.y() if bypass else self._snapVal(delta.y())
             moved = _moveShape(self._dragShape, dx, dy)
             if self._selShape is not None:
                 self._elements[self._selShape] = moved
@@ -642,7 +721,7 @@ class SymbolCanvas(QtWidgets.QWidget):
                 self._pushUndo()
                 self._dragPushed = True
             resized = _resizeShape(
-                self._dragShape, self._handle, self._snapPoint(svg)
+                self._dragShape, self._handle, self._placePoint(svg, bypass)
             )
             if self._selShape is not None:
                 self._elements[self._selShape] = resized
@@ -655,11 +734,11 @@ class SymbolCanvas(QtWidgets.QWidget):
                 self._pushUndo()
                 self._dragPushed = True
             delta = svg - self._dragStart
-            moved_pin = SymbolPin(
-                self._dragPin.name,
-                self._dragPin.x + self._snapVal(delta.x()),
-                self._dragPin.y + self._snapVal(delta.y()),
+            candidate = QtCore.QPointF(
+                self._dragPin.x + delta.x(), self._dragPin.y + delta.y()
             )
+            placed = self._placePoint(candidate, bypass)
+            moved_pin = SymbolPin(self._dragPin.name, placed.x(), placed.y())
             if self._selPin is not None:
                 self._pins[self._selPin] = moved_pin
             self.pinsChanged.emit()
@@ -786,6 +865,15 @@ class SymbolCanvas(QtWidgets.QWidget):
                     self._finishPolyline()
                     return
                 super().keyPressEvent(event)
+                return
+            if ctrl and key == QtCore.Qt.Key.Key_C:
+                self.copySelection()
+                return
+            if ctrl and key == QtCore.Qt.Key.Key_X:
+                self.cutSelection()
+                return
+            if ctrl and key == QtCore.Qt.Key.Key_V:
+                self.pasteClipboard()
                 return
             if ctrl and key == QtCore.Qt.Key.Key_Z:
                 if event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier:
@@ -1015,6 +1103,29 @@ def _shapeIsBigEnough(shape: Shape) -> bool:
     return bool(shape.text)
 
 
+def _shapeAnchor(shape: Shape) -> tuple[float, float]:
+    """The point a paste positions: first vertex / top-left / center."""
+    if shape.kind == "polyline" and shape.points:
+        return shape.points[0]
+    if len(shape.coords) >= 2:
+        return (shape.coords[0], shape.coords[1])
+    return (0.0, 0.0)
+
+
+def _snapTargets(shape: Shape) -> list[tuple[float, float]]:
+    """Points geometry snaps onto: line ends, polyline vertices and rect
+    corners - the "ends of lines" of a symbol outline."""
+    if shape.kind == "line":
+        x1, y1, x2, y2 = shape.coords
+        return [(x1, y1), (x2, y2)]
+    if shape.kind == "polyline":
+        return list(shape.points)
+    if shape.kind == "rect":
+        x, y, w, h = shape.coords
+        return [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+    return []
+
+
 def _moveShape(shape: Shape, dx: float, dy: float) -> Shape:
     moved = _cloneShape(shape)
     if moved.kind == "polyline":
@@ -1236,8 +1347,10 @@ class SymbolEditor(QtWidgets.QDialog):
         removeBtn.clicked.connect(self._removePinRow)
         hint = QtWidgets.QLabel(
             "Pin tool: click the canvas to add a pin; drag dots to move "
-            "them. Artwork from external editors (paths/groups) shows as "
-            "backdrop - the tools edit line/rect/circle/polyline/text.",
+            "them. Ends snap to line ends and corners - hold Ctrl for "
+            "free placement. Ctrl+C/X/V copy, cut and paste shapes and "
+            "pins. Artwork from external editors (paths/groups) shows "
+            "as backdrop - the tools edit line/rect/circle/polyline/text.",
             self,
         )
         hint.setWordWrap(True)
