@@ -510,6 +510,70 @@ def t_sheet_size():
     FreeCAD.ActiveDocument.recompute()
 step("paper size property (A4/Letter/template)", t_sheet_size)
 
+def t_title_block():
+    from PySide6 import QtCore, QtGui
+
+    from Schematics.Features.Utils.TitleBlock import (
+        titleBlockSvgPath,
+        titleBlockTexts,
+    )
+
+    v = sheet.ViewObject
+    # defaults match the cartouche SVG's natural size
+    assert abs(float(v.TitleBlockWidth.Value) - 185.0) < 0.01, v.TitleBlockWidth
+    assert abs(float(v.TitleBlockHeight.Value) - 55.0) < 0.01, v.TitleBlockHeight
+
+    # labels resolve through Qt translate(): English is the default,
+    # but a Russian-configured FreeCAD may have the .qm active already
+    texts = titleBlockTexts()
+    assert texts["sheet"] in ("Sheet", "Лист"), texts
+    assert len(texts) == 17, len(texts)
+
+    # the cartouche is overlaid at a fixed physical size...
+    rect0 = sheet.Proxy.titleBlockRect()
+    assert rect0 is not None, "title block not drawn"
+    w0, h0 = rect0.width(), rect0.height()
+    assert abs(w0 - 185.0) < 0.5 and abs(h0 - 55.0) < 0.5, (w0, h0)
+    # ...anchored inside the frame at the page's bottom-right
+    assert rect0.right() <= float(v.Width.Value) + 0.5
+    assert rect0.bottom() <= float(v.Height.Value) + 0.5
+    assert rect0.left() > 0 and rect0.top() > 0
+
+    # same size on a different page (A4 landscape: 297x210)
+    v.PaperSize = "A4"
+    rect1 = sheet.Proxy.titleBlockRect()
+    assert rect1 is not None
+    assert abs(rect1.width() - w0) < 0.01 and abs(rect1.height() - h0) < 0.01, \
+        (rect1.width(), rect1.height())
+
+    # configurable from the View tab
+    v.TitleBlockWidth = "150 mm"
+    rect2 = sheet.Proxy.titleBlockRect()
+    assert rect2 is not None and abs(rect2.width() - 150.0) < 0.01, rect2
+
+    # 0 hides it
+    v.TitleBlockWidth = "0 mm"
+    assert sheet.Proxy.titleBlockRect() is None
+
+    # standard i18n pipeline: load the compiled Russian .qm and the
+    # labels must come back translated (English default otherwise)
+    translator = QtCore.QTranslator()
+    assert translator.load("schematics_ru.qm", "translations"), "qm not found"
+    QtCore.QCoreApplication.installTranslator(translator)
+    try:
+        ru = titleBlockTexts()
+        assert ru["sheet"] == "Лист" and ru["rev"] == "Изм.", ru
+    finally:
+        QtCore.QCoreApplication.removeTranslator(translator)
+
+    # restore defaults + template-owned page for later steps
+    v.TitleBlockWidth = "185 mm"
+    v.PaperSize = "From template"
+    assert sheet.Proxy.titleBlockRect() is not None
+    assert titleBlockSvgPath().endswith("TitleBlock.svg")
+    FreeCAD.ActiveDocument.recompute()
+step("title block (fixed size, translated placeholders)", t_title_block)
+
 def t_bom_table():
     from Schematics.Features.Utils.Reports import componentRows
 

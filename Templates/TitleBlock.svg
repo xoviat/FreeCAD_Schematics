@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="185mm" height="55mm" version="1.1" viewBox="0 0 185 55"
+     xmlns="http://www.w3.org/2000/svg"
+     xmlns:schematics="http://www.freecad.org/wiki/index.php?title=Svg_Namespace">
+  <!-- GOST-style drawing cartouche: geometry only, no language text.
+       Text nodes are placeholders filled at runtime by
+       Schematics/Features/Utils/TitleBlock.py:
+         schematics:i18n  -> label, resolved through
+                             QCoreApplication.translate() (English default)
+         schematics:value -> live value (sheet title, page, page count),
+                             drawn natively at paint time -->
+  <g id="grid" style="fill:none;stroke:#000;stroke-width:0.6">
+    <path d="M0 0h185v55H0V0"/>
+    <path d="M65 15h120M0 20h65M135 20h50M0 25h65M135 35h50M65 40h120M7 0v25M17 0v55M40 0v55M55 0v55M65 0v55M135 15v40M150 15v20M155 35v5M167 15v20"/>
+  </g>
+  <g id="grid-thin" style="fill:none;stroke:#000;stroke-width:0.3">
+    <path d="M0 5h65M0 10h65M0 15h65M0 30h65M0 35h65M0 40h65M0 45h65M0 50h65M140 20v15M145 20v15"/>
+  </g>
+  <g id="labels" style="font-family:sans-serif;font-size:4px;fill:#000000">
+    <text x="0.42" y="23.5" schematics:i18n="rev"> </text>
+    <text x="8" y="23.5" schematics:i18n="sheet"> </text>
+    <text x="21.71" y="23.5" schematics:i18n="doc_no"> </text>
+    <text x="43.59" y="23.5" schematics:i18n="sign"> </text>
+    <text x="55.85" y="23.5" schematics:i18n="date"> </text>
+    <text x="0.6" y="28.5" schematics:i18n="drawn"> </text>
+    <text x="0.6" y="33.5" schematics:i18n="checked"> </text>
+    <text x="0.6" y="38.5" schematics:i18n="tech_ctrl"> </text>
+    <text x="0.6" y="43.5" schematics:i18n="adjunct"> </text>
+    <text x="0.6" y="48.5" schematics:i18n="norm_ctrl"> </text>
+    <text x="0.6" y="53.5" schematics:i18n="approved"> </text>
+    <text x="139" y="18.5" schematics:i18n="lit"> </text>
+    <text x="154" y="18.5" schematics:i18n="mass"> </text>
+    <text x="169.5" y="18.5" schematics:i18n="scale"> </text>
+    <text x="138" y="38.5" schematics:i18n="sheet"> </text>
+    <text x="158" y="38.5" schematics:i18n="sheets"> </text>
+    <text x="100" y="22" text-anchor="middle" schematics:i18n="title"> </text>
+    <text x="160" y="50" text-anchor="middle" schematics:i18n="organization"> </text>
+    <text x="100" y="31" text-anchor="middle" schematics:value="title"> </text>
+    <text x="149" y="38.5" schematics:value="sheet"> </text>
+    <text x="177" y="38.5" schematics:value="sheets"> </text>
+  </g>
+</svg>

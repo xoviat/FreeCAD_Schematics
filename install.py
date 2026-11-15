@@ -13,8 +13,12 @@ MOD_DIR defaults to the Mod folder of the newest local FreeCAD install:
 
 Only the runtime payload is copied (Init.py, InitGui.py, SCUtils.py and the
 Schematics/ Icons/ Art/ Symbols/ Templates/ folders); dev tooling such as
-mypy.ini and the verify_*.py scripts stays out. An existing Schematics
-folder at the destination is replaced. Restart FreeCAD to load the workbench.
+mypy.ini and the verify_*.py scripts stays out. Compiled translations
+(translations/*.qm) are placed in the FreeCAD user app-data
+translations/ directory (the parent of Mod/), where FreeCAD's Translator
+auto-loads *_<locale>.qm files for the configured language.
+An existing Schematics folder at the destination is replaced.
+Restart FreeCAD to load the workbench.
 """
 
 import os
@@ -123,6 +127,25 @@ def main(argv):
 
     files = sum(len(f) for _, _, f in os.walk(dest))
     print(f"Installed {copied} payload items ({files} files) -> {dest}")
+
+    # Compiled Qt translations: FreeCAD's Translator scans
+    # <user app-data>/translations for *_<locale>.qm (the parent of the
+    # Mod directory), so put them there for the configured language.
+    qm_src = os.path.join(src, "translations")
+    if os.path.isdir(qm_src):
+        translations_dir = os.path.join(os.path.dirname(mod_dir), "translations")
+        os.makedirs(translations_dir, exist_ok=True)
+        qm_count = 0
+        for name in sorted(os.listdir(qm_src)):
+            if name.endswith(".qm"):
+                shutil.copy2(
+                    os.path.join(qm_src, name),
+                    os.path.join(translations_dir, name),
+                )
+                qm_count += 1
+        if qm_count:
+            print(f"Installed {qm_count} translation(s) -> {translations_dir}")
+
     print("Restart FreeCAD to load the Schematics workbench.")
     return 0
 

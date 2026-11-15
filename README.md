@@ -105,6 +105,36 @@ navigator) lists all pages with their symbol and wire counts. Real hierarchical 
 stretched to fit (exact for the A-series); `From template` hands the dimensions back to the
 SVG template's own viewBox.
 
+**Title block**: the GOST-style cartouche in the frame's bottom-right corner is a separate
+overlay (`Templates/TitleBlock.svg`) at a **fixed physical size on every page size** -
+controlled by the *View* properties **TitleBlockWidth**/**TitleBlockHeight** (defaults
+185x55 mm, `0` hides it). It shows the sheet title (the object's Label) and the live
+page/page-count; its label text is inserted at creation time from the configured language
+(see below). Sheet templates themselves are pure geometry (frame paths only) and can differ
+per sheet.
+
+### Language and translations
+
+The default language is **English**, and FreeCAD's configured language
+(*Edit > Preferences > General > Language*) decides whether a translation is used - the
+standard Qt Linguist pipeline, not a custom mechanism:
+
+- Sheet text is marked with `QtCore.QCoreApplication.translate("Schematics", "...")` in
+  `Schematics/Features/Utils/TitleBlock.py`; at sheet creation the
+  `schematics:i18n` placeholders in `Templates/TitleBlock.svg` are filled with the
+  resolved strings (the SVG carries **no** language text at all).
+- English is compiled in (source strings), so no `.qm` is needed for the default.
+- Translations live in `translations/schematics_<lang>.ts` (XML, editable) and are compiled
+  with `pyside6-lrelease` to `.qm`; `install.py` places them in the FreeCAD user app-data
+  `translations/` directory, where FreeCAD's Translator auto-loads `*_*.qm` for the active
+  language. Restart FreeCAD after installing or changing translations.
+- To add a language: run
+  `pyside6-lupdate Schematics/Features/Utils/TitleBlock.py -extensions py -ts translations/schematics_<lang>.ts`,
+  fill the `<translation>` entries, then
+  `pyside6-lrelease translations/schematics_<lang>.ts -qm translations/schematics_<lang>.qm`
+  and re-run `install.py`. Note lupdate only recognizes the direct
+  `QtCore.QCoreApplication.translate("context", "...")` form with literal arguments.
+
 ### Print and PDF
 
 **File → Print / Print preview** (Ctrl+P) renders the sheet exactly as drawn - page size and
@@ -267,13 +297,20 @@ properties dialog `E`, cursor-follow move `M`) are deliberately not bound.
 ### Testing
 
 * `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
-* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (28 steps): commands, dialogs, save/reload
-  persistence, hotkey registration, reports and the wire-drawing state machine. It writes
-  `_fc_verify.log`; a good run ends with `RESULT: 28 PASS / 0 FAIL` and exit code 0.
+* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (31 steps): commands, dialogs, save/reload
+  persistence, hotkey registration, reports, the wire-drawing state machine and the title block.
+  It writes `_fc_verify.log`; a good run ends with `RESULT: 31 PASS / 0 FAIL` and exit code 0.
 * `FreeCADCmd.exe verify_imports.py` - module import smoke test (31 modules).
 * Known gotcha: verify steps must **not** call `deleteLater()` on dialogs - a pending deferred
   delete races the script's hard `os._exit(0)` and trips a GILState fatal (exit 127). Steps use
   plain scope-exit destruction instead; the chooser step documents this in place.
+* Native-crash gotchas found the hard way (both end as *Access violation*, exit 127):
+  Qt 6.8's SVG renderer **crashes on `<text/>` with no content** - placeholder text nodes
+  must always carry at least a space (the patcher enforces this); and
+  `QGraphicsSvgItem.setSharedRenderer()` does **not** take ownership - keep an explicit
+  Python reference to the `QSvgRenderer` for as long as the item lives, or the C++ renderer
+  is deleted out from under the item on first paint. When a run AVs at a moving line number,
+  bisect by disabling the suspect code path before reaching for a native debugger.
 
 ### Typing
 

@@ -1,69 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="210mm" height="297mm" version="1.1" viewBox="0 0 210 297" xmlns="http://www.w3.org/2000/svg" xmlns:freecad="http://www.freecadweb.org/wiki/index.php?title=Svg_Namespace">
- <!-- Working space 20 5 205 292 -->
- <!-- Title block 0 232 205 292 -->
- <g id="thick_lines" style="fill:none;stroke:#000;stroke-width:0.6">
-  <path d="m20 5h185v287h-185v-287"/>
-  <path d="M20 237h185v55h-185v-55M85 252h120M20 257h65M155 257h50M20 262h65M155 272h50M85 277h120M27 237v25M37 237v55M60 237v55M75 237v55M85 237v55M155 252v40M170 252v20M175 272v5M187 252v20"/>
-  <path d="M8 5v120h12v-120h-12M13 5v120M8 65h12M8 147v145h12v-145h-12M13 147v145M8 182h12M8 207h12M8 232h12M8 267h12"/>
-  <path d="m20 5h70v14h-70v-14"/>
- </g>
- <g id="thin_lines" style="fill:none;stroke:#000;stroke-width:0.3">
-  <path d="M20 242h65M20 247h65M20 252h65M20 267h65M20 272h65M20 277h65M20 282h65M20 287h65M160 257v15M165 257v15"/>
- </g>
- <g id="labels" style="font-family:GOSTRUS;font-style:italic;font-size:4px;">
-  <g id="stamp">
-   <text x="20.42" y="260.5">Изм.</text>
-   <text x="28" y="260.5">Лист</text>
-   <text x="41.71" y="260.5">№ докум.</text>
-   <text x="63.59" y="260.5">Подп.</text>
-   <text x="75.85" y="260.5">Дата</text>
-   <text x="20.6" y="265.5">Разраб.</text>
-   <text x="20.6" y="270.5">Пров.</text>
-   <text x="20.6" y="275.5">Т.Контр.</text>
-   <text x="20.6" y="285.5">Н.Контр.</text>
-   <text x="20.6" y="290.5">Утв.</text>
-   <text x="159" y="255.5">Лит.</text>
-   <text x="174" y="255.5">Масса</text>
-   <text x="189.5" y="255.5">Масштаб</text>
-   <text x="158" y="275.5">Лист</text>
-   <text x="178" y="275.5">Листов</text>
-   <text x="90.3" y="295.7">Копировал</text>
-   <text x="165.3" y="295.7">Формат A4</text>
+<svg width="210mm" height="297mm" version="1.1" viewBox="0 0 210 297"
+     xmlns="http://www.w3.org/2000/svg">
+  <!-- A4 portrait sheet frame (GOST margins): geometry only, no text.
+       Labels live in Templates/TitleBlock.svg and are translated at
+       runtime. -->
+  <g id="frame" style="fill:none;stroke:#000;stroke-width:0.6">
+    <!-- working-space border: 20 binding margin left, 5 elsewhere -->
+    <path d="M20 5h185v287H20V5"/>
+    <!-- binding-strip inventory marks (upper and lower strips) -->
+    <path d="M8 5v120h12V5H8M13 5v120M8 65h12"/>
+    <path d="M8 147v145h12V147H8M13 147v145M8 182h12M8 207h12M8 232h12M8 267h12"/>
+    <!-- top-left reference box -->
+    <path d="M20 5h70v14H20V5"/>
   </g>
-  <g id="stamp_editable">
-   <g id="middle" style="text-anchor:middle">
-    <text x="144.5" y="248" font-size="11.2px" freecad:editable="Обозначение документа"><tspan>АБВГ.000000.000</tspan></text>
-    <text x="120" y="259" font-size="8px" freecad:editable="Наименование строка 1"><tspan>Наименование</tspan></text>
-    <text x="120" y="267" font-size="8px" freecad:editable="Наименование строка 2"><tspan>изделия</tspan></text>
-    <text x="157.9" y="267" font-size="8px" freecad:editable="Литера 1"><tspan/></text>
-    <text x="162.9" y="267" font-size="8px" freecad:editable="Литера 2"><tspan/></text>
-    <text x="167.9" y="267" font-size="8px" freecad:editable="Литера 3"><tspan/></text>
-    <text x="179" y="267" font-size="8px" freecad:editable="Масса"><tspan>0,75</tspan></text>
-    <text x="196.5" y="267" font-size="8px" freecad:editable="Масштаб"><tspan>1:1</tspan></text>
-    <text x="119.8" y="275" font-size="8px" freecad:editable="Идентификатор сборочного чертежа"><tspan>Сборочный чертеж</tspan></text>
-    <text x="120" y="287" font-size="8px" freecad:editable="Материал детали"><tspan>Материал детали</tspan></text>
-    <text x="180" y="287" font-size="5.6px" freecad:editable="Наименование организации"><tspan>ООО "Организация"</tspan></text>
-    <text x="169" y="275.5" freecad:editable="Порядковый номер листа"><tspan>1</tspan></text>
-    <text x="197" y="275.5" freecad:editable="Общее количество листов"><tspan>1</tspan></text>
-   </g>
-   <text x="37.5" y="265.5" freecad:editable="ФИО Разработчика"><tspan/></text>
-   <text x="37.5" y="270.5" freecad:editable="ФИО Проверябщего"><tspan/></text>
-   <text x="37.5" y="275.5" freecad:editable="ФИО Т.Контр."><tspan/></text>
-   <text x="20.6" y="280.5" freecad:editable="Дополнительное лицо"><tspan/></text>
-   <text x="37.5" y="280.5" freecad:editable="ФИО дополнительного лица"><tspan/></text>
-   <text x="37.5" y="285.5" freecad:editable="ФИО Н.Контр."><tspan/></text>
-   <text x="37.5" y="290.5" freecad:editable="ФИО Утвердившего"><tspan/></text>
-  </g>
-  <g transform="translate(8,5) rotate(-90)" text-anchor="middle">
-   <text x="-30" y="3.5">Перв. примен.</text>
-   <text x="-91" y="3.5">Справ. №</text>
-   <text x="-160" y="3.5">Подп. и дата</text>
-   <text x="-190" y="3.5">Инв. № дубл.</text>
-   <text x="-215" y="3.5">Взам. инв. №</text>
-   <text x="-245" y="3.5">Подп. и дата</text>
-   <text x="-275" y="3.5">Инв. № подл</text>
-  </g>
- </g>
- <!-- DrawingContent -->
 </svg>
