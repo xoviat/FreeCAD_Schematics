@@ -606,6 +606,149 @@ def t_bom_table():
     FreeCAD.ActiveDocument.recompute()
 step("BOM table element (on-sheet component list)", t_bom_table)
 
+def t_bom_title_box_and_snap():
+    """The title row is one box across the full row width (column
+    separators must not cut through it), and the table's bottom-right
+    corner magnets onto the title block's top-right corner."""
+    from PySide6 import QtCore, QtGui, QtWidgets
+    from Schematics.Features.Items.BillOfMaterials import (
+        BOM_COLUMNS,
+        LINE_W,
+        ROW_H,
+        TITLE_H,
+    )
+    from Schematics.Features.Utils.Reports import componentRows, symbolCount
+
+    # size math must agree with the full row walk (symbolCount skips the
+    # symbol-store scan that componentRows needs for names/descriptions)
+    assert symbolCount(sheet) == len(componentRows(sheet)), (
+        symbolCount(sheet), len(componentRows(sheet)))
+
+    bom = None
+    for element in sheet.Elements:
+        if getattr(element, "Type", "") == "BillOfMaterials":
+            bom = element
+            break
+    assert bom is not None, "no BillOfMaterials element on the sheet"
+    item = bom.Proxy.item
+    total_w, height = item._tableSize()
+
+    # --- render the table off-screen and inspect its pixels -----------
+    rect = item.boundingRect()
+    scale = 6
+    img = QtGui.QImage(int(rect.width() * scale) + 2,
+                       int(rect.height() * scale) + 2,
+                       QtGui.QImage.Format.Format_ARGB32)
+    img.fill(QtGui.QColor("white"))
+    painter = QtGui.QPainter(img)
+    painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    painter.scale(scale, scale)
+    painter.translate(-rect.x(), -rect.y())
+    item.paint(painter, QtWidgets.QStyleOptionGraphicsItem(), None)
+    painter.end()
+
+    def darkAt(x: float, y: float, window: float = 1.0) -> bool:
+        """Any near-black pixel within +/-window sheet units of (x, y)."""
+        px0 = max(0, int((x - window - rect.x()) * scale))
+        px1 = min(img.width(), int((x + window - rect.x()) * scale) + 2)
+        py0 = max(0, int((y - window - rect.y()) * scale))
+        py1 = min(img.height(), int((y + window - rect.y()) * scale) + 2)
+        for py in range(py0, py1):
+            for px in range(px0, px1):
+                colour = QtGui.QColor(img.pixel(px, py))
+                if colour.red() < 128 and colour.green() < 128:
+                    return True
+        return False
+
+    title_mid = TITLE_H / 2.0
+    header_mid = TITLE_H + ROW_H / 2.0
+    # the title row is a box spanning the whole row: bordered on all four
+    # sides and NOT chopped into cells by the column separators
+    assert darkAt(0.0, title_mid), "title row left border missing"
+    assert darkAt(total_w, title_mid), "title row right border missing"
+    assert darkAt(total_w / 2.0, TITLE_H), "title box bottom border missing"
+    assert not darkAt(BOM_COLUMNS[0][1], title_mid), \
+        "column separator still cuts through the title row"
+    assert not darkAt(BOM_COLUMNS[0][1] + BOM_COLUMNS[1][1], title_mid), \
+        "column separator still cuts through the title row"
+    # ...while the separators still exist below it (header + data rows)
+    assert darkAt(BOM_COLUMNS[0][1] + BOM_COLUMNS[1][1], header_mid), \
+        "column separator missing from the header row"
+
+    # --- corner magnet onto the title block ---------------------------
+    title_block = sheet.Proxy.titleBlockRect()
+    assert title_block is not None, "sheet has no visible title block"
+    target_x = title_block.right() - total_w - LINE_W / 2.0
+    target_y = title_block.top() - height - LINE_W / 2.0
+
+    # both axes in reach -> exact corner alignment
+    item.setPos(target_x + 2.0, target_y + 2.0)
+    assert abs(item.x() - target_x) < 1e-6, (item.x(), target_x)
+    assert abs(item.y() - target_y) < 1e-6, (item.y(), target_y)
+
+    # ...and the *ink* must be flush too, not just the paths. Qt centres
+    # a stroked rect on its path (ink runs LINE_W/2 past it) while the
+    # title block's SVG border is clipped at its bounding box, so aiming
+    # at the raw corner overhung by half a stroke - ~1-2 px on screen.
+    page_w = float(sheet.ViewObject.Width.Value)
+    page_h = float(sheet.ViewObject.Height.Value)
+    ink_scale = 10
+    shot = QtGui.QImage(int(page_w * ink_scale), int(page_h * ink_scale),
+                        QtGui.QImage.Format.Format_ARGB32)
+    shot.fill(QtGui.QColor("white"))
+    ink_painter = QtGui.QPainter(shot)
+    ink_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+    sheet.Proxy.scene.render(
+        ink_painter, QtCore.QRectF(0, 0, shot.width(), shot.height()),
+        QtCore.QRectF(0, 0, page_w, page_h))
+    ink_painter.end()
+
+    def rightmostInk(y0: float, y1: float) -> float | None:
+        """Outer edge (scene x) of the rightmost dark pixel in a y band."""
+        best = None
+        for py in range(int(y0 * ink_scale), min(shot.height(), int(y1 * ink_scale))):
+            for px in range(shot.width() - 1, -1, -1):
+                colour = QtGui.QColor(shot.pixel(px, py))
+                if colour.red() < 128 and colour.green() < 128:
+                    x = (px + 1) / ink_scale
+                    if best is None or x > best:
+                        best = x
+                    break
+        return best
+
+    # bands: the table's rows sit just above the block, the block below it
+    ink_bom = rightmostInk(title_block.top() - height + 1.0,
+                           title_block.top() - 1.0)
+    ink_tb = rightmostInk(title_block.top() + 1.0,
+                          title_block.top() + min(40.0, title_block.height() - 1.0))
+    assert ink_bom is not None and ink_tb is not None, (ink_bom, ink_tb)
+    assert abs(ink_bom - ink_tb) <= 1.0 / ink_scale + 1e-9, \
+        "BOM right border ink is off by %.3f sheet units" % (ink_bom - ink_tb)
+
+    # only x in reach -> x lands exactly, y still grid-snaps (never left
+    # off-grid just because the other axis magnetized)
+    item.setPos(target_x + 2.0, target_y + 40.0)
+    assert abs(item.x() - target_x) < 1e-6, (item.x(), target_x)
+    step = float(sheet.ViewObject.GridSpacing.Value)
+    assert abs(item.y() - round(item.y() / step) * step) < 1e-6, item.y()
+    assert item.y() != target_y, (item.y(), target_y)
+
+    # outside tolerance -> plain grid snap, no magnet
+    item.setPos(target_x + 60.0, target_y + 60.0)
+    assert abs(item.x() - target_x) > 10.0, item.x()
+    assert abs(item.y() - target_y) > 10.0, item.y()
+
+    # a literal property write must stay literal (no magnet jumps it)
+    bom.X = target_x + 2.0
+    FreeCAD.ActiveDocument.recompute()
+    assert abs(item.x() - round(target_x + 2.0, 5)) < 1e-6, item.x()
+
+    # park it somewhere sane for the steps that follow
+    bom.X = 30
+    bom.Y = 200
+    FreeCAD.ActiveDocument.recompute()
+step("BOM title box + title-block corner snap", t_bom_title_box_and_snap)
+
 def t_shortcuts():
     from PySide6 import QtGui, QtWidgets
     mainWin = Gui.getMainWindow()

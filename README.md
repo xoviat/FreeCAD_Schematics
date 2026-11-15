@@ -156,6 +156,15 @@ style): position it like any other element, edit its `Title` in the property tab
 rows refresh live as symbols are annotated, renamed or deleted - only position and heading
 are stored, the content always mirrors the sheet.
 
+The table's heading sits in one box across the full row width (column separators start
+below it). While placing or dragging, a magnet lines the table's **bottom-right corner** up
+with the title block's **top-right corner** - each axis independently, so right-edge and
+bottom-edge alignment are each useful on their own and together they land the corner. The
+snap is measured on the painted edges rather than the geometry: the table's stroked border
+paints half a stroke past its path while the title block's SVG border is clipped at its
+box, so aiming at the raw corner would overhang by ~1-2 px. Type an exact `X`/`Y` in the
+property tab to bypass it; turning off grid snapping disables it too.
+
 ### Delete symbol(s)
 
 Select symbol(s) in sheet or in treeview. Press delete key on keyboard.

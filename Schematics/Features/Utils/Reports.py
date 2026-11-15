@@ -84,6 +84,30 @@ def componentRows(sheet: Any, catalog: SymbolCatalog | None = None) -> list[Comp
     return rows
 
 
+def symbolCount(sheet: Any) -> int:
+    """How many component rows a sheet would produce, without building the
+    symbol catalog.
+
+    Row count only needs each element's Designator; the catalog (which
+    walks the whole symbol store) is only needed for the symbol name and
+    description that componentRows fills in. Size math on the sheet runs
+    per mouse-move while dragging, so it must stay cheap - verify pins
+    the two to the same number.
+    """
+    try:
+        elements = list(sheet.Elements)
+    except (ReferenceError, RuntimeError, AttributeError):
+        return 0
+    count = 0
+    for element in elements:
+        try:
+            if getattr(element, "Designator", None) is not None:
+                count += 1
+        except (ReferenceError, RuntimeError, AttributeError):
+            continue   # half-deleted element; componentRows skips it too
+    return count
+
+
 def componentListText(rows: Iterable[ComponentRow]) -> str:
     """Aligned plain-text table (console, log, quick paste)."""
     materialized = list(rows)

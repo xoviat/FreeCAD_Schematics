@@ -26,8 +26,12 @@ from Schematics.Features.Items.SchemeObject import (
     makeObject,
 )
 from Schematics.Features.Items.SchemeObjectItem import SchemeObjectItem
-from Schematics.Features.Utils.Reports import ComponentRow, componentRows
-from Schematics.Features.Utils.Snap import snap
+import Schematics.Features.Utils.Snap as SN
+from Schematics.Features.Utils.Reports import (
+    ComponentRow,
+    componentRows,
+    symbolCount,
+)
 
 #: (heading, width in sheet units) per column, left to right.
 BOM_COLUMNS: tuple[tuple[str, float], ...] = (
@@ -43,6 +47,13 @@ FONT_PX = 4
 LINE_W = 0.4
 #: Horizontal inset for cell text.
 TEXT_PAD = 2.0
+#: Corner magnet reach in sheet units: when an axis of the table's
+#: bottom-right corner is this close to the title block's top-right
+#: corner it snaps onto it, so the table settles flush above the block.
+#: Independent per axis (right-edge and bottom-edge alignment are
+#: useful on their own); exact value entry through the property editor
+#: stays literal because the X/Y setters run with WithoutSnap.
+TB_SNAP_TOL = 5.0
 
 
 class BillOfMaterials:
@@ -119,6 +130,23 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         except (ReferenceError, RuntimeError, AttributeError):
             return ""
 
+    def _tableSize(self, row_count: int | None = None) -> tuple[float, float]:
+        """Drawn table size in sheet units as (width, height), top-left at
+        the origin - the same numbers paint() and boundingRect() use.
+
+        row_count defaults to symbolCount() rather than tableRows(): the
+        count is all the geometry needs, and resolving catalog metadata
+        for every row would walk the symbol store on each mouse-move.
+        """
+        if row_count is None:
+            row_count = symbolCount(self.sheet)
+        width = sum(width for _name, width in BOM_COLUMNS)
+        height = ROW_H   # header row
+        if self._title():
+            height += TITLE_H
+        height += row_count * ROW_H
+        return width, height
+
     def updateTransform(self) -> None:
         # Origin stays top-left: no centering transform (like Wire).
         self.setTransform(QtGui.QTransform(), combine=False)
@@ -130,13 +158,11 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         if self.drawMode:
             # Placement footprint: the whole sheet, like other primitives
             return QtCore.QRectF(-5e3, -5e3, 10e3, 10e3)
-        rows = self.tableRows()
-        width = sum(width for _name, width in BOM_COLUMNS) + 2.0
-        height = ROW_H   # header row
-        if self._title():
-            height += TITLE_H
-        height += len(rows) * ROW_H
-        return QtCore.QRectF(-1.0, -1.0, width, height)
+        total_w, height = self._tableSize()
+        # +/-1 slack around the drawn rect (its 0.4 stroke stays inside);
+        # the height needs the same +2 the width has, otherwise the bottom
+        # border falls outside the repaint/click bounds
+        return QtCore.QRectF(-1.0, -1.0, total_w + 2.0, height + 2.0)
 
     def shape(self) -> QtGui.QPainterPath:
         path = QtGui.QPainterPath()
@@ -144,16 +170,78 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         return path
 
     # ------------------------------------------------------------------
+    # Title-block corner magnet
+    # ------------------------------------------------------------------
+    def _alignToTitleBlock(self, raw: QtCore.QPointF) -> QtCore.QPointF | None:
+        """Snap the table's bottom-right corner onto the title block's
+        top-right corner.
+
+        Tolerance is measured from the raw (pre-snap) point, so it reads
+        as "how close did you drop it". Each axis is independent: the
+        right edge aligns usefully on its own, the bottom edge likewise,
+        and together they land the corner. The axis that does *not*
+        magnetize still gets the normal grid snap - a half-aligned drop
+        must not leave that axis off-grid.
+
+        Returns None when nothing aligns, so the caller falls back to a
+        plain grid snap.
+        """
+        try:
+            if self.sheet.SnapEnabled is not True or SN.WithoutSnap:
+                return None   # snapping off, or a literal property write
+            title_block = self.sheet.Proxy.titleBlockRect()
+        except (ReferenceError, RuntimeError, AttributeError):
+            return None
+        if title_block is None:
+            return None   # no title block on the sheet (or hidden)
+        total_w, height = self._tableSize()
+        # Line up the *ink*, not the paths. Qt centres a stroked rect on
+        # its path, so the table's border paints LINE_W/2 past it, while
+        # the title block's SVG border is clipped to its bounding box and
+        # stops dead at titleBlockRect(). Aiming at the raw corner left
+        # the table overhanging the block (and the frame) by half a
+        # stroke - about 1-2 px on screen.
+        target_x = title_block.right() - total_w - LINE_W / 2.0
+        target_y = title_block.top() - height - LINE_W / 2.0
+        magnet_x = abs(raw.x() - target_x) <= TB_SNAP_TOL
+        magnet_y = abs(raw.y() - target_y) <= TB_SNAP_TOL
+        if not magnet_x and not magnet_y:
+            return None
+        snapped = SN.snap(raw, self.sheet)
+        return QtCore.QPointF(
+            target_x if magnet_x else snapped.x(),
+            target_y if magnet_y else snapped.y(),
+        )
+
+    def _placePoint(self, raw: QtCore.QPointF) -> QtCore.QPointF:
+        """Title-block magnet first (exact corner), else grid snap."""
+        aligned = self._alignToTitleBlock(raw)
+        if aligned is not None:
+            return aligned
+        return SN.snap(raw, self.sheet)
+
+    def itemChange(self, change: Any, value: Any) -> Any:
+        # Drags land here (drawMode off sets ItemSendsGeometryChanges);
+        # hover placement during drawMode does not, hence _placePoint too.
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            aligned = self._alignToTitleBlock(value)
+            if aligned is not None:
+                self.positionUpdated = True
+                return aligned
+            return super().itemChange(change, value)
+        return super().itemChange(change, value)
+
+    # ------------------------------------------------------------------
     # Placement (same flow as Symbol primitives)
     # ------------------------------------------------------------------
     def _trackDrawPos(self, scenePos: QtCore.QPointF) -> None:
         if self.drawMode:
-            self.curRelPos = snap(scenePos, self.sheet)
+            self.curRelPos = self._placePoint(scenePos)
             self.setPos(self.curRelPos)
 
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         if self.drawMode and event.button() == QtCore.Qt.MouseButton.LeftButton:
-            start = snap(event.scenePos(), self.sheet)
+            start = self._placePoint(event.scenePos())
             self.obj.X = start.x()
             self.obj.Y = start.y()
             self.drawMode = False
@@ -191,11 +279,7 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
         paper = QtGui.QColor.fromRgbF(*appearance.paperColor())
         title = self._title()
 
-        total_w = sum(width for _name, width in BOM_COLUMNS)
-        height = ROW_H
-        if title:
-            height += TITLE_H
-        height += len(rows) * ROW_H
+        total_w, height = self._tableSize(len(rows))
 
         g.save()
         g.beginNativePainting()
@@ -234,6 +318,7 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
             # Explicit full-width box for the title row: its own border
             # on all four sides (top/sides shared with the table border)
             g.drawRect(QtCore.QRectF(0.0, 0.0, total_w, y))
+        grid_top = y   # column separators start below the title row
 
         # Header row (same font as everything else)
         x = 0.0
@@ -264,10 +349,13 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
             if y < height:   # last row line is the bottom border itself
                 g.drawLine(QtCore.QPointF(0.0, y), QtCore.QPointF(total_w, y))
 
+        # Column separators run from the first header row down. They must
+        # not start at 0: doing so cut the title row into cells, so the
+        # heading never sat in one box spanning the full row width.
         x = 0.0
         for _name, width in BOM_COLUMNS[:-1]:
             x += width
-            g.drawLine(QtCore.QPointF(x, 0.0), QtCore.QPointF(x, height))
+            g.drawLine(QtCore.QPointF(x, grid_top), QtCore.QPointF(x, height))
 
         g.endNativePainting()
         g.restore()
