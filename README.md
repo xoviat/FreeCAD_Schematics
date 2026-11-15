@@ -176,9 +176,11 @@ them); the table edits names and coordinates, and Description / Reference prefix
 the selection (or become the defaults for the next shape).
 
 Placement snaps to the **ends of existing lines** (line ends, polyline vertices and rect
-corners) before falling back to the grid - so pins land exactly on wire stubs. **Hold
-`Ctrl` while clicking or dragging for free placement** (bypasses all snapping; the Snap
-toggle off does the same). `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut and paste the selected
+corners) before falling back to the grid - including the **imported artwork of existing
+symbols**, whose path endpoints are snap targets too, so pins land exactly on wire stubs.
+The Pin tool draws an **orange ring at the position a click would commit to**, so the
+magnet is visible before you press the button. **Hold `Ctrl` while clicking or dragging
+for free placement** (bypasses all snapping; the Snap toggle off does the same). `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut and paste the selected
 shape or pin at the cursor (pasting on the original spot nudges it clear); pin copies get
 the next free pin number. The pin table and text fields keep their native Qt copy/paste
 when they have focus.

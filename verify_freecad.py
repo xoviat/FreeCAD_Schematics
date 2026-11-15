@@ -631,7 +631,10 @@ def t_symbol_manager():
     import tempfile
     from PySide6 import QtCore, QtWidgets
     from Schematics.Features.Dialogs.SymbolChooser import SymbolPreview
-    from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
+    from Schematics.Features.Dialogs.SymbolEditor import (
+        SymbolCanvas,
+        SymbolEditor,
+    )
     from Schematics.Features.Dialogs.SymbolManager import (
         SymbolManager,
         validatePins,
@@ -718,8 +721,27 @@ def t_symbol_manager():
         assert (placed.x(), placed.y()) == (3.0, 4.0), placed
         free = canvas._placePoint(QtCore.QPointF(3.04, 4.03), True)
         assert (free.x(), free.y()) == (3.04, 4.03), free
-        gridded = canvas._placePoint(QtCore.QPointF(2.02, 2.02), False)
-        assert (gridded.x(), gridded.y()) == (2.0, 2.0), gridded
+        # grid fallback: far from every endpoint (line is 1,2 - 3,4),
+        # so only the 0.5 grid can resolve it
+        gridded = canvas._placePoint(QtCore.QPointF(10.02, 6.02), False)
+        assert (gridded.x(), gridded.y()) == (10.0, 6.0), gridded
+
+        # imported artwork (existing symbols are mostly raw paths) must
+        # offer snap targets too, and the endpoint magnet beats the grid
+        canvas2 = SymbolCanvas()
+        canvas2.setDocument(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
+            '<g stroke="#000"><path d="m13 10h7"/></g></svg>',
+            [],
+        )
+        hit = canvas2._placePoint(QtCore.QPointF(13.05, 10.02), False)
+        assert (hit.x(), hit.y()) == (13.0, 10.0), hit
+        hit = canvas2._placePoint(QtCore.QPointF(13.3, 10.3), False)
+        assert (hit.x(), hit.y()) == (13.0, 10.0), hit
+        hit = canvas2._placePoint(QtCore.QPointF(19.9, 10.1), False)
+        assert (hit.x(), hit.y()) == (20.0, 10.0), hit
+        free = canvas2._placePoint(QtCore.QPointF(13.05, 10.02), True)
+        assert (free.x(), free.y()) == (13.05, 10.02), free
 
         # copy / paste / cut: shapes and pins
         line_idx = next(

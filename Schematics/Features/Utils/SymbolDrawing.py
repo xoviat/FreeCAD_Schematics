@@ -343,6 +343,100 @@ def serializeElements(elements: list[DrawingElement]) -> list[str]:
     ]
 
 
+_PATH_ARITY = {
+    "M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4,
+    "Q": 4, "T": 2, "A": 7, "Z": 0,
+}
+_PATH_TOKEN_RE = re.compile(
+    r"[A-Za-z]|-?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?"
+)
+
+
+def pathSnapPoints(d: str) -> list[tuple[float, float]]:
+    """Endpoints of a path's segments - the "line ends" external
+    artwork offers as snap targets (M/L/H/V absolute and relative,
+    plus the end point of curve/arc segments)."""
+    points: list[tuple[float, float]] = []
+    cx = cy = 0.0
+    cmd = ""
+    rel = False
+    args: list[float] = []
+    need = 0
+    for token in _PATH_TOKEN_RE.findall(d):
+        if token.isalpha():
+            cmd = token.upper()
+            rel = token.islower()
+            need = _PATH_ARITY.get(cmd, 0)
+            args = []
+            if cmd == "Z":
+                cmd, need = "", 0
+            continue
+        if not cmd:
+            continue
+        args.append(float(token))
+        if need == 0 or len(args) < need:
+            continue
+        vals, args = args[:need], args[need:]
+        ox = cx if rel else 0.0
+        oy = cy if rel else 0.0
+        if cmd in ("M", "L", "T"):
+            cx, cy = vals[0] + ox, vals[1] + oy
+            points.append((cx, cy))
+            if cmd == "M":
+                cmd, need = "L", 2   # implicit lineto (rel unchanged)
+        elif cmd == "H":
+            cx = vals[0] + ox
+            points.append((cx, cy))
+        elif cmd == "V":
+            cy = vals[0] + oy
+            points.append((cx, cy))
+        elif cmd == "C":
+            cx, cy = vals[4] + ox, vals[5] + oy
+            points.append((cx, cy))
+        elif cmd in ("S", "Q"):
+            cx, cy = vals[2] + ox, vals[3] + oy
+            points.append((cx, cy))
+        elif cmd == "A":
+            cx, cy = vals[5] + ox, vals[6] + oy
+            points.append((cx, cy))
+    return points
+
+
+def rawSnapTargets(text: str) -> list[tuple[float, float]]:
+    """Snap points hidden in unmodelled artwork (RawElement text):
+    path segment ends plus line/rect/polyline geometry in groups."""
+    points: list[tuple[float, float]] = []
+    for d in re.findall(r'\bd="([^"]*)"', text):
+        points.extend(pathSnapPoints(d))
+    for tag in re.findall(r"<(?:line|polyline|rect)\b[^>]*>", text):
+        if "schematics:pin" in tag:
+            continue
+        attrs = dict(_ATTR_RE.findall(tag))
+        low = tag.lower()
+        try:
+            if low.startswith("<line"):
+                points.append((float(attrs["x1"]), float(attrs["y1"])))
+                points.append((float(attrs["x2"]), float(attrs["y2"])))
+            elif low.startswith("<rect"):
+                x = float(attrs["x"])
+                y = float(attrs["y"])
+                w = float(attrs["width"])
+                h = float(attrs["height"])
+                points.extend(
+                    [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+                )
+            else:  # polyline
+                tokens = [
+                    t for t in re.split(r"[\s,]+", attrs.get("points", "").strip())
+                    if t
+                ]
+                for idx in range(0, len(tokens) - 1, 2):
+                    points.append((float(tokens[idx]), float(tokens[idx + 1])))
+        except (KeyError, ValueError):
+            continue
+    return points
+
+
 def viewBoxOf(svg: str) -> tuple[float, float, float, float]:
     """(x, y, w, h) of the root tag's viewBox (fallback: size attrs)."""
     root = _ROOT_TAG_RE.search(svg)

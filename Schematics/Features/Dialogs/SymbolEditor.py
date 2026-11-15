@@ -29,6 +29,7 @@ from Schematics.Features.Utils.SymbolDrawing import (
     RawElement,
     Shape,
     parseDrawing,
+    rawSnapTargets,
     saveSymbolFile,
     viewBoxOf,
     validatePins,
@@ -38,6 +39,9 @@ from Schematics.Features.Utils.SVGSymbolsCache import invalidate
 
 # Hit tolerance / handle size in screen pixels.
 _TOL_PX = 7.0
+# Placement snap radius - deliberately larger than hit-testing so the
+# magnet feels generous before the grid fallback takes over.
+_SNAP_PX = 14.0
 _HANDLE_PX = 7.0
 _SNAP_STEP = 0.5
 _UNDO_LIMIT = 100
@@ -129,6 +133,8 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._pending: Shape | None = None
         self._polyPoints: list[QtCore.QPointF] = []
         self._lastCursor = QtCore.QPointF(0.0, 0.0)
+        self._hover: QtCore.QPointF | None = None   # pin-tool ghost
+        self._rawTargets: list[tuple[float, float]] = []
 
         self._style = ("#000000", 0.5, "#ffffff")
 
@@ -148,6 +154,12 @@ class SymbolCanvas(QtWidgets.QWidget):
         x, y, w, h = viewBoxOf(svg)
         self._viewBox = QtCore.QRectF(x, y, w, h)
         self._elements = parseDrawing(svg)
+        self._rawTargets = [
+            pt
+            for element in self._elements
+            if isinstance(element, RawElement)
+            for pt in rawSnapTargets(element.text)
+        ]
         self._pins = list(pins)
         self._rebuildBackdrop()
         self._selShape = None
@@ -158,6 +170,7 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._redo.clear()
         self._drawingDirty = False
         self._lastCursor = self._viewBox.center()
+        self._hover = None
         self._cancelPending()
         self.changed.emit()
         self.selectionChanged.emit()
@@ -210,6 +223,7 @@ class SymbolCanvas(QtWidgets.QWidget):
             return
         self._cancelPending()
         self._tool = tool
+        self._hover = None
         cursor = (
             QtCore.Qt.CursorShape.CrossCursor
             if tool is not Tool.SELECT
@@ -496,9 +510,17 @@ class SymbolCanvas(QtWidgets.QWidget):
         toggle being off - places freely."""
         if bypass or not self._snap:
             return point
-        tol = _TOL_PX / max(self._scale(), 1e-6)
+        tol = _SNAP_PX / max(self._scale(), 1e-6)
         best: QtCore.QPointF | None = None
         best_d = tol
+        # backdrop artwork first (existing symbols are mostly raw
+        # paths - editable Shapes alone would offer no targets), then
+        # the shapes drawn in this session
+        for ex, ey in self._rawTargets:
+            d = math.hypot(point.x() - ex, point.y() - ey)
+            if d <= best_d:
+                best_d = d
+                best = QtCore.QPointF(ex, ey)
         for element in self._elements:
             if not isinstance(element, Shape):
                 continue
@@ -664,6 +686,7 @@ class SymbolCanvas(QtWidgets.QWidget):
 
         if self._tool is Tool.PIN:
             point = self._placePoint(svg, bypass)
+            self._hover = point
             self.addPinAt(point.x(), point.y())
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -679,6 +702,10 @@ class SymbolCanvas(QtWidgets.QWidget):
             event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier
         )
         if self._drag is _Drag.NONE:
+            if self._tool is Tool.PIN:
+                # live ghost at the position a click would commit to
+                self._hover = self._placePoint(svg, bypass)
+                self.update()
             return
         if self._drag is _Drag.PAN:
             delta = event.position() - self._widgetStart
@@ -826,6 +853,12 @@ class SymbolCanvas(QtWidgets.QWidget):
         self._dragShape = None
         self._dragPin = None
         self.update()
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        if self._hover is not None:
+            self._hover = None
+            self.update()
+        super().leaveEvent(event)
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         try:
@@ -983,6 +1016,16 @@ class SymbolCanvas(QtWidgets.QWidget):
             painter.drawText(
                 QtCore.QPointF(center.x() + 6.0, center.y() - 4.0), pin.name
             )
+
+        # pin-tool ghost: the exact point a click would commit to, so
+        # the endpoint magnet is visible before you press the button
+        if self._tool is Tool.PIN and self._hover is not None:
+            center = self.toWidget(self._hover)
+            painter.setPen(QtGui.QPen(QtGui.QColor("#d97706"), 1.5))
+            painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(center, 6.0, 6.0)
+            painter.setBrush(QtGui.QColor("#d97706"))
+            painter.drawEllipse(center, 1.5, 1.5)
 
         # widget frame
         painter.setPen(QtGui.QPen(QtGui.QColor("#b0b0b0"), 1.0))
@@ -1347,10 +1390,10 @@ class SymbolEditor(QtWidgets.QDialog):
         removeBtn.clicked.connect(self._removePinRow)
         hint = QtWidgets.QLabel(
             "Pin tool: click the canvas to add a pin; drag dots to move "
-            "them. Ends snap to line ends and corners - hold Ctrl for "
-            "free placement. Ctrl+C/X/V copy, cut and paste shapes and "
-            "pins. Artwork from external editors (paths/groups) shows "
-            "as backdrop - the tools edit line/rect/circle/polyline/text.",
+            "them. Ends snap to line ends and corners - including the "
+            "imported artwork of existing symbols (the orange ring shows "
+            "where a click lands); hold Ctrl for free placement. "
+            "Ctrl+C/X/V copy, cut and paste shapes and pins.",
             self,
         )
         hint.setWordWrap(True)
