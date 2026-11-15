@@ -121,14 +121,19 @@ def parseDrawing(svg: str) -> list[DrawingElement]:
     i = 0
     length = len(content)
     while i < length:
-        comment = _COMMENT_RE.match(content, i)
-        if comment is not None:
-            elements.append(RawElement(comment.group(0)))
-            i = comment.end()
-            continue
-        match = _TAG_RE.match(content, i)
+        # search(), not match(): top-level content is indented, so the
+        # first tag is never at position i (match() bailed on "\n <g>"
+        # and dropped the whole backdrop).
+        match = _TAG_RE.search(content, i)
         if match is None:
             break
+        if content.startswith("<!--", match.start()):
+            comment = _COMMENT_RE.match(content, match.start())
+            if comment is not None:
+                elements.append(RawElement(comment.group(0)))
+                i = comment.end()
+                continue
+        i = match.start()          # skip inter-element whitespace
         tag = match.group(0)
         low = tag.lower()
         if low.startswith("</"):
@@ -142,7 +147,10 @@ def parseDrawing(svg: str) -> list[DrawingElement]:
                 elements.append(_parseText(tag, inner_text))
                 i = close.end()
                 continue
-        if self_closing and _isShapeTag(low) and "schematics:pin" not in tag:
+        if self_closing and _isShapeTag(low):
+            if "schematics:pin" in tag:
+                i = match.end()   # pins travel in the pins list, not here
+                continue
             elements.append(_parseShapeTag(tag))
             i = match.end()
             continue
@@ -158,7 +166,7 @@ def parseDrawing(svg: str) -> list[DrawingElement]:
         start = i
         j = match.end()
         while stack and j < length:
-            inner = _TAG_RE.match(content, j)
+            inner = _TAG_RE.search(content, j)
             if inner is None:
                 break
             inner_tag = inner.group(0)

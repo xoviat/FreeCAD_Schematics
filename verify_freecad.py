@@ -638,6 +638,7 @@ def t_symbol_manager():
     )
     from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog, SymbolPin
     from Schematics.Features.Utils.SymbolDrawing import (
+        RawElement,
         Shape,
         createNewSymbol,
         parseDrawing,
@@ -690,8 +691,10 @@ def t_symbol_manager():
         assert 'schematics:description="roundtrip test"' in text
         assert 'schematics:ref="K"' in text
 
-        # canvas: shape roundtrip + undo
+        # canvas: shape roundtrip + undo, artwork preserved
         elements = parseDrawing(text)
+        raws = [e for e in elements if isinstance(e, RawElement)]
+        assert raws, "existing artwork must parse as backdrop"
         before = len(elements)
         editor.canvas.addShape(Shape(kind="circle", coords=[10.0, 10.0, 3.0]))
         assert len(editor.canvas.elements) == before + 1
@@ -703,6 +706,8 @@ def t_symbol_manager():
         with open(dst, "r", encoding="utf-8") as fh:
             text = fh.read()
         assert '<line x1="1" y1="2" x2="3" y2="4"' in text, "shape missing"
+        for e in raws:
+            assert e.text in text, "artwork lost: %r" % e.text[:40]
         _data, raw = extractPins(text)
         assert len(raw) == 2, raw
         assert 'schematics:description="roundtrip test"' in text
