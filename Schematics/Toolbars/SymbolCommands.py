@@ -16,7 +16,6 @@ from Schematics.Features.Items.Ellipse import *
 from Schematics.Features.Items.Line import *
 from Schematics.Features.Items.Text import *
 from Schematics.Features.Items.Symbol import *
-from Schematics.Features.Utils.SVGSymbolsCache import loadSVGSymbol
 
 SymbolCommandList: list[str] = []
 
@@ -299,20 +298,11 @@ PrimitiveCommand('Text', Text, accel='T')
 
 addCommand('Separator')
 
-dir = pathToSymbolsFolder+"\\GOST"
-for subdir, dirs, files in os.walk(dir):
-    for file in files:
-        if ".svg" in file.lower():
-            #print(os.path.join(subdir, file))
-            typ = file[:-4] #.replace(" ", "").replace(".", "")
-            group = ''
-            if subdir != dir:
-                group = os.path.basename(subdir)
-            print(group)
-            loadSVGSymbol("GOST"+'\\'+group+'\\'+typ) #typ, os.path.join(subdir, file))
-            PrimitiveCommand(typ, Symbol, group)
-
-addCommand('Separator')
+# One toolbar button per store symbol used to be generated here: walk
+# Symbols/GOST and call PrimitiveCommand() for every SVG found. The store
+# can now hold thousands of batch-imported symbols, which floods the top
+# bar, so placement goes through "Place symbol…" (A) instead. A curated
+# shortlist of symbol buttons can come back later if wanted.
 
 class FunctionCommand:
     """ Item(s) change command class """
