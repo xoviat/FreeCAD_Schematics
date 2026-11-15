@@ -77,7 +77,6 @@ def titleBlockTexts() -> dict[str, str]:
         "lit": QtCore.QCoreApplication.translate("Schematics", "Lit."),
         "mass": QtCore.QCoreApplication.translate("Schematics", "Mass"),
         "scale": QtCore.QCoreApplication.translate("Schematics", "Scale"),
-        "sheets": QtCore.QCoreApplication.translate("Schematics", "Sheets"),
         "title": QtCore.QCoreApplication.translate("Schematics", "Title"),
         "organization": QtCore.QCoreApplication.translate("Schematics", "Organization"),
     }

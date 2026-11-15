@@ -12,7 +12,6 @@ from typing import Any
 
 from PySide6 import QtGui, QtCore, QtWidgets
 from Schematics.Features.Utils.Snap import constrainAngle, snap
-from Schematics.Features.Utils.Sheets import pageIndex
 from Schematics.Features.Utils.QtEnums import *
 from Schematics.Features.SchemeContextMenu import ContextMenu
 from Schematics.Features.Items.SchemeObject import *
@@ -212,24 +211,8 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
             for p in self.wirePoints:
                 g.drawEllipse(p, 2.0, 2.0)
 
-        # Page number, bottom right (multi-page projects)
-        try:
-            page, total = pageIndex(self.obj)
-            if page:
-                g.setPen(QtGui.QPen(QtGui.QColor.fromRgbF(*self.obj.LinesColor)))
-                font = g.font()
-                font.setPixelSize(6)
-                g.setFont(font)
-                sheet_w = float(self.vobj.Width.Value)
-                sheet_h = float(self.vobj.Height.Value)
-                g.drawText(
-                    QtCore.QRectF(sheet_w - 70.0, sheet_h - 9.0, 64.0, 8.0),
-                    int(QtCore.Qt.AlignmentFlag.AlignRight
-                        | QtCore.Qt.AlignmentFlag.AlignBottom),
-                    "Page %d of %d" % (page, total),
-                )
-        except (ReferenceError, RuntimeError, AttributeError, TypeError):
-            pass   # sheet/document tearing down mid-paint
+        # Page number lives in the title block's boxed "Page N of M"
+        # (TitleBlock element), not as loose corner text anymore.
 
     def retireStaleWindow(self) -> None:
         """ Close the MDI window bound to a deleted document object.

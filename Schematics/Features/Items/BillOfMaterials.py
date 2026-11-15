@@ -231,7 +231,9 @@ class BOMItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
                 title,
             )
             y += TITLE_H
-            g.drawLine(QtCore.QPointF(0.0, y), QtCore.QPointF(total_w, y))
+            # Explicit full-width box for the title row: its own border
+            # on all four sides (top/sides shared with the table border)
+            g.drawRect(QtCore.QRectF(0.0, 0.0, total_w, y))
 
         # Header row (same font as everything else)
         x = 0.0

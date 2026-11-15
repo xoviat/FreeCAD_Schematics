@@ -94,7 +94,8 @@ property still overrides the look.
 
 ### Pages and sheet index
 
-Every sheet draws its **Page N of M** number bottom-right, in document order. `PgUp`/`PgDn`
+The title block carries a boxed **Page N of M** indicator (translated with the rest of the
+cartouche text), so the loose corner text is gone. `PgUp`/`PgDn`
 switch tabs (KiCad's sheet navigation) and the **Sheet index** (`Ctrl+H`, KiCad's hierarchy
 navigator) lists all pages with their symbol and wire counts. Real hierarchical sheets
 (parent/child references across pages) are not modelled yet - sheets are peers.

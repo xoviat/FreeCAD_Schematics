@@ -531,7 +531,11 @@ def t_title_block():
     # but a Russian-configured FreeCAD may have the .qm active already
     texts = titleBlockTexts()
     assert texts["sheet"] in ("Sheet", "Лист"), texts
-    assert len(texts) == 17, len(texts)
+    assert "sheets" not in texts, "page box uses one phrase now"
+    assert len(texts) == 16, len(texts)
+    # the boxed page phrase is a translated format string
+    fmt = QtCore.QCoreApplication.translate("Schematics", "Page %1 of %2")
+    assert fmt.replace("%1", "1").replace("%2", "1") == "Page 1 of 1", fmt
 
     # the cartouche is overlaid at a fixed physical size...
     rect0 = sheet.Proxy.titleBlockRect()

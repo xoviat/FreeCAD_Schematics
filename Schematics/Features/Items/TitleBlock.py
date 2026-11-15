@@ -207,8 +207,13 @@ class TitleBlockItem(SchemeObjectItem, QtWidgets.QGraphicsItem):
 
             values["title"] = str(self.sheet.Label)
             page, total = pageIndex(self.sheet)
-            values["sheet"] = str(page)
-            values["sheets"] = str(total)
+            # one boxed phrase, translated like every other label
+            fmt = QtCore.QCoreApplication.translate(
+                "Schematics", "Page %1 of %2"
+            )
+            values["page"] = fmt.replace("%1", str(page)).replace(
+                "%2", str(total)
+            )
         except (ReferenceError, RuntimeError, AttributeError, Exception):
             pass
 

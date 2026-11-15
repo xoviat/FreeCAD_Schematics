@@ -75,18 +75,18 @@
     </message>
     <message>
         <location filename="../Schematics/Features/Utils/TitleBlock.py" line="80" />
-        <source>Sheets</source>
-        <translation>Листов</translation>
-    </message>
-    <message>
-        <location filename="../Schematics/Features/Utils/TitleBlock.py" line="81" />
         <source>Title</source>
         <translation>Наименование</translation>
     </message>
     <message>
-        <location filename="../Schematics/Features/Utils/TitleBlock.py" line="82" />
+        <location filename="../Schematics/Features/Utils/TitleBlock.py" line="81" />
         <source>Organization</source>
         <translation>Организация</translation>
+    </message>
+    <message>
+        <location filename="../Schematics/Features/Items/TitleBlock.py" line="211" />
+        <source>Page %1 of %2</source>
+        <translation>Стр. %1 из %2</translation>
     </message>
 </context>
 </TS>
