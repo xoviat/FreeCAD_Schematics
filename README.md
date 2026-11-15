@@ -55,7 +55,7 @@ Symbols carry KiCad-style `Designator` (K1, R3) and `Value` fields in the proper
 annotation follows KiCad's two-step flow:
 
 1. **Placement** shows a placeholder - `R?`, `K?`, `?` - drawn above the symbol. The prefix
-   comes from the symbol's library entry (`schematics:ref`, set in the pin editor) or, until
+   comes from the symbol's library entry (`schematics:ref`, set in the symbol editor) or, until
    one is set, from the store group (Resistors→R, Realys→K, Diodes→VD, Transistors→VT,
    Lamps→H, Commutation→S).
 2. **Annotate sheet** replaces placeholders with the smallest free number per prefix
@@ -159,6 +159,26 @@ are stored, the content always mirrors the sheet.
 ### Delete symbol(s)
 
 Select symbol(s) in sheet or in treeview. Press delete key on keyboard.
+
+### Symbol library and editor
+
+`Ctrl+E` (or the toolbar button) opens the **symbol manager**: filter/search, preview with
+pins, and `New symbol…` / `Edit…` / `Duplicate` / `Import…` / `Delete…` / `Open folder` /
+`Refresh`. `New symbol…` creates a blank SVG in the chosen group and opens it in the
+**symbol editor**; `Edit…` (or double-click) opens the selected symbol.
+
+The editor draws directly in FreeCAD: **Select / Line / Rect / Circle / Polyline / Text /
+Pin** tools on a snap grid (0.5 mm, toggleable), wheel zoom, pan (drag empty space or the
+middle button), move/resize handles, `Del` to remove, `Ctrl+Z/Y` undo/redo, `Fit` to reset
+the view. Click with the **Pin** tool to add connection points (drag the dots to move
+them); the table edits names and coordinates, and Description / Reference prefix set the
+`schematics:description` / `schematics:ref` metadata. Stroke color, width and fill follow
+the selection (or become the defaults for the next shape).
+
+Artwork brought in from external SVG tools (`<path>`/`<g>` groups) renders as a static
+backdrop - the built-in tools edit line/rect/circle/ellipse/polyline/text shapes, so
+existing symbols keep their original artwork byte-for-byte while pins and metadata stay
+fully editable.
 
 ## Copy / Paste features
 
@@ -289,7 +309,7 @@ The sheet view follows the KiCad schematic editor's default hotkeys so muscle me
 | `PgUp` / `PgDn` | Previous / next sheet tab |
 | `Ctrl+H` | Sheet index (page, name, symbol and wire counts) |
 | `Enter` / double-click | Finish wire, place the chosen symbol |
-| `Ctrl+E` | Symbol manager (pin editor opens directly for the selected symbol) |
+| `Ctrl+E` | Symbol manager (symbol editor opens directly for the selected symbol) |
 | `Ctrl+C/X/V`, `Ctrl+Z/Y` | Clipboard and undo/redo (FreeCAD defaults) |
 
 Hotkeys are declared as the `Accel` resource on each command and only fire while a

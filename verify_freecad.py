@@ -626,30 +626,55 @@ def t_shortcuts():
 step("KiCad-style hotkeys registered", t_shortcuts)
 
 def t_symbol_manager():
-    import dataclasses
     import os
     import shutil
     import tempfile
+    from PySide6 import QtWidgets
+    from Schematics.Features.Dialogs.SymbolChooser import SymbolPreview
+    from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
     from Schematics.Features.Dialogs.SymbolManager import (
-        PinEditor,
         SymbolManager,
         validatePins,
     )
     from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog, SymbolPin
+    from Schematics.Features.Utils.SymbolDrawing import (
+        Shape,
+        createNewSymbol,
+        parseDrawing,
+        readSymbol,
+        saveSymbolFile,
+    )
     from Schematics.Features.Utils.SVGSymbolsCache import extractPins
 
     cat = SymbolCatalog()
     dlg = SymbolManager(catalog=cat)
     assert dlg.table.rowCount() >= 5, dlg.table.rowCount()
     assert dlg._selected() is not None, "first row not selected"
+    # import/new never depend on a selection; the rest follow it
+    assert dlg.importBtn.isEnabled() and dlg.newBtn.isEnabled()
+    assert dlg.editBtn.isEnabled(), "row 0 is selected"
+    # no stray Close button parked over the filter (unparented-layout bug)
+    strays = [
+        b for b in dlg.findChildren(QtWidgets.QPushButton)
+        if b.parent() is dlg and b.text() == "Close"
+    ]
+    assert not strays, strays
 
-    # Pin editor roundtrip on a TEMP copy - the real store is never written.
+    # Editor roundtrip on a TEMP copy - the real store is never written.
     src = next(e for e in cat.all() if len(cat.pins(e)) >= 2)
     tmp = tempfile.mkdtemp(prefix="sc_sym_")
     try:
         dst = os.path.join(tmp, os.path.basename(src.path))
         shutil.copy2(src.path, dst)
-        editor = PinEditor(
+        # the preview must render with no catalog entry (editor case)
+        with open(dst, "r", encoding="utf-8") as fh:
+            svg_text = fh.read()
+        _d, _r, src_pins = readSymbol(dst)
+        preview = SymbolPreview()
+        preview.setData(svg_text, [(p.name, p.x, p.y) for p in src_pins])
+        assert preview._renderer.isValid(), "preview must render"
+
+        editor = SymbolEditor(
             path=dst,
             pins=[SymbolPin("1", 1.5, 2.0), SymbolPin("2", 9.0, 2.0)],
             description="roundtrip test",
@@ -664,20 +689,62 @@ def t_symbol_manager():
         ], raw
         assert 'schematics:description="roundtrip test"' in text
         assert 'schematics:ref="K"' in text
+
+        # canvas: shape roundtrip + undo
+        elements = parseDrawing(text)
+        before = len(elements)
+        editor.canvas.addShape(Shape(kind="circle", coords=[10.0, 10.0, 3.0]))
+        assert len(editor.canvas.elements) == before + 1
+        assert editor.canvas.canUndo
+        editor.canvas.undo()
+        assert len(editor.canvas.elements) == before
+        editor.canvas.addShape(Shape(kind="line", coords=[1.0, 2.0, 3.0, 4.0]))
+        assert editor.save() is None, "drawing save failed"
+        with open(dst, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        assert '<line x1="1" y1="2" x2="3" y2="4"' in text, "shape missing"
+        _data, raw = extractPins(text)
+        assert len(raw) == 2, raw
+        assert 'schematics:description="roundtrip test"' in text
+
         # invalid pin names must be rejected (loader charset), not written
-        bad = PinEditor(
+        bad = SymbolEditor(
             path=dst, pins=[SymbolPin("bad name!", 0.0, 0.0)],
             description="", ref="",
         )
         assert bad.save(), "invalid pin name accepted"
         assert validatePins([SymbolPin("A1", 0.0, 0.0)]) is None
+
+        # new-symbol flow against a TEMP store
+        store = os.path.join(tmp, "store")
+        cat2 = SymbolCatalog(root=store)
+        new_path = createNewSymbol(store, "", "TestSym")
+        assert os.path.exists(new_path)
+        with open(new_path, "r", encoding="utf-8") as fh:
+            assert parseDrawing(fh.read()) == []
+        cat2.refresh()
+        assert any(e.name == "TestSym" for e in cat2.all()), "not catalogued"
+        try:
+            createNewSymbol(store, "", "bad/name")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("bad name accepted")
+        # saveSymbolFile direct use keeps the root tag + pins coherent
+        saveSymbolFile(
+            new_path, [Shape(kind="rect", coords=[5.0, 5.0, 10.0, 10.0])],
+            [SymbolPin("1", 0.0, 10.0)], description="d", ref="X",
+        )
+        desc, ref, pins = readSymbol(new_path)
+        assert (desc, ref) == ("d", "X"), (desc, ref)
+        assert pins == [SymbolPin("1", 0.0, 10.0)], pins
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
     # No deleteLater(): a pending deferred delete races the hard os._exit()
     # at the end of this script (GILState fatal, exit 127).
     dlg.close()
-step("symbol manager + pin editor (temp store)", t_symbol_manager)
+step("symbol manager + symbol editor (temp store)", t_symbol_manager)
 
 def t_view_props():
     v = sheet.ViewObject

@@ -90,14 +90,14 @@ class SCSymbolManager:
         return {
             'Pixmap': getToolbarIconPath('SymbolManager.svg'),
             'MenuText': "Symbol manager…",
-            'ToolTip': "Browse, duplicate, import and edit symbol pins/metadata "
-                       "(opens the pin editor directly for the selected symbol)",
+            'ToolTip': "Browse, create, duplicate, import and edit symbols "
+                       "(opens the symbol editor directly for the selected symbol)",
             'Accel': 'Ctrl+E',
         }
 
     def Activated(self) -> None:
+        from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
         from Schematics.Features.Dialogs.SymbolManager import (
-            PinEditor,
             SymbolManager,
             readSymbol,
         )
@@ -112,7 +112,7 @@ class SCSymbolManager:
                 break
         if entry is not None:
             desc, ref, pins = readSymbol(entry.path)
-            editor = PinEditor(
+            editor = SymbolEditor(
                 path=entry.path, pins=pins, description=desc, ref=ref,
                 cacheKey=entry.key, parent=parent,
             )

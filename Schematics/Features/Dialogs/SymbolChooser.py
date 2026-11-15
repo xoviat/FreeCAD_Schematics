@@ -110,8 +110,13 @@ class SymbolPreview(QtWidgets.QWidget):
         return QtCore.QRectF(x, y, w, h)
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        """Click inside the preview -> emit SVG coordinates (pin placing)."""
-        if self._entry is not None and self._renderer.isValid():
+        """Click inside the preview -> emit SVG coordinates (pin placing).
+
+        Gated on the renderer only: the pin editor calls setData() with
+        no catalog entry, and entry-gating showed "No symbol" for a
+        perfectly valid SVG (and broke click-to-place there too).
+        """
+        if self._renderer.isValid():
             vb = self._renderer.viewBoxF()
             target = self._target_rect()
             if not vb.isEmpty() and target.contains(event.position()):
@@ -128,7 +133,7 @@ class SymbolPreview(QtWidgets.QWidget):
         painter.fillRect(self.rect(), QtGui.QColor("#ffffff"))
         painter.setPen(QtGui.QColor("#b0b0b0"))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
-        if self._entry is None or not self._renderer.isValid():
+        if not self._renderer.isValid():
             painter.setPen(QtGui.QColor("#808080"))
             painter.drawText(
                 self.rect(), QtCore.Qt.AlignmentFlag.AlignCenter, "No symbol",

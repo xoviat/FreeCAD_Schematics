@@ -16,6 +16,8 @@ mods = [
  'Schematics.Features.Functions.TextStyle', 'Schematics.Features.Functions.Transforms',
  'Schematics.Features.Utils.MDI', 'Schematics.Features.Utils.ActionsReplacer',
  'Schematics.Features.Utils.Printing', 'Schematics.Features.Observers',
+ 'Schematics.Features.Utils.SymbolDrawing',
+ 'Schematics.Features.Dialogs.SymbolEditor',
 ]
 fails = 0
 for m in mods:

@@ -77,9 +77,12 @@ class SymbolEntry:
 class SymbolCatalog:
     """Walks the symbol store and answers queries about its contents."""
 
-    def __init__(self, standard: str = "GOST") -> None:
+    def __init__(self, standard: str = "GOST", root: str | None = None) -> None:
         self.standard = standard
-        self.root = os.path.join(pathToSymbolsFolder, standard)
+        # root override: tests point the catalog at a temp store
+        self.root = root if root is not None else os.path.join(
+            pathToSymbolsFolder, standard
+        )
         self._entries: list[SymbolEntry] = []
         self._by_key: dict[str, SymbolEntry] = {}
         self._meta_cache: dict[str, SymbolMeta] = {}
