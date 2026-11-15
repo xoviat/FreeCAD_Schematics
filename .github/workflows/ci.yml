@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: ruff / mypy / basedpyright
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # 3.11 matches the interpreter embedded in FreeCAD (see README);
+      # mypy.ini and pyrightconfig.json both pin pythonVersion 3.11.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      # pyrightconfig.json resolves the environment as venvPath "." +
+      # venv ".venv", so the venv must be created in the repository root
+      # exactly as the README's setup instructions do.
+      - name: Create .venv
+        run: python -m venv .venv
+
+      - name: Install dev tooling
+        run: |
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r requirements-dev.txt
+
+      - name: ruff
+        run: .venv/bin/ruff check .
+
+      - name: mypy
+        run: >-
+          .venv/bin/python -m mypy --no-pretty
+          Init.py InitGui.py SCUtils.py
+          Schematics verify_freecad.py verify_imports.py
+
+      - name: basedpyright
+        run: .venv/bin/basedpyright .
+
+      # The repository is LF-only (.gitattributes: `* text=auto eol=lf`);
+      # this keeps a stray CRLF commit from creeping back in. Binaries are
+      # detected by content, the same way the history normalization did.
+      - name: Line endings are LF-only
+        run: |
+          .venv/bin/python - <<'PY'
+          import subprocess
+          import sys
+
+          names = subprocess.run(
+              ["git", "ls-files", "-z"], capture_output=True
+          ).stdout.split(b"\0")
+          bad = []
+          for raw in names:
+              if not raw:
+                  continue
+              path = raw.decode("utf-8", "replace")
+              try:
+                  data = open(path, "rb").read()
+              except OSError:
+                  continue
+              if b"\0" in data[:8192]:
+                  continue          # binary file
+              if b"\r\n" in data:
+                  bad.append(path)
+          if bad:
+              print("CRLF line endings committed:")
+              for path in bad:
+                  print("  " + path)
+              sys.exit(1)
+          print("all committed text files are LF")
+          PY
+
+      # The FreeCAD end-to-end suite (verify_freecad.py / verify_imports.py)
+      # needs a real FreeCAD 1.1 install with its bundled PySide6 and, for
+      # the GUI half, an X display, so it stays a local gate - run it from
+      # the repository root before pushing, as documented in README.
+      - name: Suite is local-only (recorded here for visibility)
+        run: echo "FreeCAD verify_freecad.py / verify_imports.py are local gates"
