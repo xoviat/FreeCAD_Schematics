@@ -154,6 +154,15 @@ def t_designators():
     assert first.Value == "Resistor", first.Value
     assert refPrefix(first) == "R", refPrefix(first)
     assert GROUP_PREFIXES.get("Resistors") == "R", GROUP_PREFIXES
+    # store group is spelled Relays - the folder used to be "Realys"
+    assert GROUP_PREFIXES.get("Relays") == "K", GROUP_PREFIXES
+    assert "Realys" not in GROUP_PREFIXES, GROUP_PREFIXES
+    from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
+    groups = SymbolCatalog().groups()
+    assert "Relays" in groups, groups
+    assert "Realys" not in groups, groups
+    relay = SymbolCatalog().find("Coil", "Relays", "GOST")
+    assert relay is not None, "relay symbols not found under Relays"
 
     Symbol.typ = "Resistor"
     Symbol.grp = "Resistors"

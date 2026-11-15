@@ -5,26 +5,26 @@ This software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIO
 # Description
 
 Among the main features, this editor is oriented to what kind of window is currently active. 
-Scheme is currently selected in the treeview is less important.
+Which scheme is currently selected in the treeview is less important.
 
 This means:
-* For example, if activate window with 3D view, the buttons associated with schematics workbench is will go out. 
+* For example, if you activate a window with a 3D view, the buttons associated with the schematics workbench will go out.
 It doesn't matter what scheme is currently selected in treeview, the main thing is which window is currently active.
-* Another example, if copy objects and paste it. Objects will be pasted into the window that is currently active. 
+* Another example, if you copy objects and paste them. Objects will be pasted into the window that is currently active.
 It doesn't matter what scheme is selected in the treeview.
 
-It is important to note: if select an object in document treeview, then the window (tab) with a scheme in where 
-this object located is automatically activates.
+It is important to note: if you select an object in the document treeview, then the window (tab) with the scheme where
+this object is located is activated automatically.
 
 Not supported features:
 * A convenient and fast way to make a copy of an existing sheet is not available yet.
 
 ## Main concepts
 
-The workbench allows to create sheets for drawing schematics. 
+The workbench lets you create sheets for drawing schematics.
 The scheme is a set of symbols (Conventional Graphic Designation) connected with lines (wires).
 
-Each symbol has a pins - areas for connecting wires, just like a real electronic component or electrical apparatus has contacts for connecting wires.
+Each symbol has pins - areas for connecting wires, just like a real electronic component or electrical apparatus has contacts for connecting wires.
 
 ![Pins](Art/Symbols_and_pins.png)
 
@@ -37,7 +37,7 @@ Press button <img src="Icons/Toolbars/NewScheme.svg" title="New scheme" width="2
 ### Add new symbols
 
 Activate window with scheme and press symbol button.
-Also, is possible to change position and rotation of symbol by context menu or from property's tab.
+It is also possible to change the position and rotation of a symbol from the context menu or the property tab.
 
 ### Draw wires
 
@@ -56,7 +56,7 @@ annotation follows KiCad's two-step flow:
 
 1. **Placement** shows a placeholder - `R?`, `K?`, `?` - drawn above the symbol. The prefix
    comes from the symbol's library entry (`schematics:ref`, set in the symbol editor) or, until
-   one is set, from the store group (Resistors→R, Realys→K, Diodes→VD, Transistors→VT,
+   one is set, from the store group (Resistors→R, Relays→K, Diodes→VD, Transistors→VT,
    Lamps→H, Commutation→S).
 2. **Annotate sheet** replaces placeholders with the smallest free number per prefix
    (`R?` → R1, R2, ...). Placeholders consume no numbers, and a placeholder's own prefix
@@ -204,15 +204,15 @@ fully editable.
 ### Copy symbol(s)
 
 Select symbol or a few symbols. 
-Press right mouse button and select a 'Copy' from context menu or select a 'Edit → Copy' main menu item. 
-Activate window which contain scheme sheet where to insert symbols. 
-Press right mouse button and select a 'Paste' from context menu or select a 'Edit → Paste' main menu item. 
-Symbols copied by context menu will be pasted to current mouse cursor position. 
-Symbols pasted through the 'Edit → Paste' main menu item, will be pasted to the same place where they copied.
+Press the right mouse button and select 'Copy' from the context menu, or select the 'Edit → Copy' main menu item. 
+Activate the window containing the scheme sheet where you want to insert symbols. 
+Press the right mouse button and select 'Paste' from the context menu, or select the 'Edit → Paste' main menu item. 
+Symbols copied by the context menu are pasted at the current mouse cursor position. 
+Symbols pasted through the 'Edit → Paste' main menu item are pasted in the same place where they were copied.
 
 ### Copy a full scheme sheet
 
-This feature not fully supported yet. To make right duplicate of scheme select sheet with all elements,
+This feature is not fully supported yet. To make a correct duplicate of a scheme, select the sheet with all elements,
 and Copy and Paste it.
 
 ## Sheet customizing features
@@ -239,18 +239,18 @@ Also, this feature can be enabled by changing the 'Snap Enabled' property throug
 The grid spacing can be set by changing the 'Grid Spacing' property. 
 It is also possible to enable a snap to the major grid by changing scheme 'Snap To Major Grid' property.
 
-Note: if specify zero as the grid line width, then the grid line width will be 1 pixel ever, independently of the sheet scale.
+Note: if you specify zero for the grid line width, the grid lines will be 1 pixel wide regardless of the sheet scale.
 
 ### Sheet blueprint displaying mode
 
-This feature allows to represent the scheme in inverted colors.
+This feature lets you display the scheme in inverted colors.
 To change displaying mode, select scheme in treeview of document and set 'Invert colors' property.
 
 ## Script examples
 
-For run examples, at first activate Schematics workbench after that copy given code and paste it to FreeCAD Python console.
+To run the examples, first activate the Schematics workbench, then copy the code and paste it into the FreeCAD Python console.
 
-First script example is creates a empty sheet and generate a 5x5 grid from symbols.
+The first script example creates an empty sheet and generates a 5x5 grid of symbols.
 
 ```python
 Gui.runCommand('SCNewScheme',0)
@@ -339,10 +339,10 @@ properties dialog `E`, cursor-follow move `M`) are deliberately not bound.
 ### Testing
 
 * `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
-* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (31 steps): commands, dialogs, save/reload
+* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (32 steps): commands, dialogs, save/reload
   persistence, hotkey registration, reports, the wire-drawing state machine and the title block.
-  It writes `_fc_verify.log`; a good run ends with `RESULT: 31 PASS / 0 FAIL` and exit code 0.
-* `FreeCADCmd.exe verify_imports.py` - module import smoke test (31 modules).
+  It writes `_fc_verify.log`; a good run ends with `RESULT: 32 PASS / 0 FAIL` and exit code 0.
+* `FreeCADCmd.exe verify_imports.py` - module import smoke test (33 modules).
 * Known gotcha: verify steps must **not** call `deleteLater()` on dialogs - a pending deferred
   delete races the script's hard `os._exit(0)` and trips a GILState fatal (exit 127). Steps use
   plain scope-exit destruction instead; the chooser step documents this in place.

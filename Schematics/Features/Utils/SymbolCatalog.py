@@ -37,6 +37,7 @@ _DESC_RE = re.compile(r'schematics:description="([^"]*)"')
 _REF_RE = re.compile(r'schematics:ref="([^"]*)"')
 
 
+
 @dataclass(frozen=True)
 class SymbolPin:
     """One connection point in SVG user coordinates."""
@@ -65,8 +66,8 @@ class SymbolEntry:
 
     @property
     def key(self) -> str:
-        """Cache key in the same ``Standard\\Group\\Name`` form the
-        workbench loader uses."""
+        """Cache key in the same ``Standard\\Group\\Name`` form (the
+        workbench loader's convention)."""
         return "\\".join(p for p in (self.standard, self.group, self.name) if p)
 
     @property

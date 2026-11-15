@@ -71,8 +71,8 @@ class SchemeFeature:
         # https://github.com/FreeCAD/FreeCAD/blob/302d3f5b95030b81d1a4b45f40fc8d18f1ecbe49/src/App/PropertyFile.cpp#L613-L629
         if FreeCADGitVersion() >= 31900:
             obj.Template = {"filter": "Svg files (*.svg *.SVG);;All files (*.*)"}
-        # Using the PropertyLinkListHidden property type instead of just PropertyLinkList 
-        # allows to avoid the intrusive dialog that popup when user try to remove any element from the sheet.
+        # Using the PropertyLinkListHidden property type instead of just PropertyLinkList
+        # avoids the intrusive dialog that pops up when the user tries to remove any element from the sheet.
         obj.addProperty('App::PropertyEnumeration', 'Appearance', 'Appearance', 'Sheet appearance style', 8+16).Appearance = list(SheetAppearanceStyles)
         obj.Appearance = list(SheetAppearanceStyles)[0]   # Default appearance
         obj.addProperty('App::PropertyColor', 'LinesColor', 'Appearance', 'Color of scheme lines', 8+16).LinesColor = (0.0, 0.0, 0.0, 1.0)
@@ -94,7 +94,7 @@ class SchemeFeature:
         self.initWindow(obj)
 
     # This function is called in two cases:
-    # after __init__() when the user creates an new object,
+    # after __init__() when the user creates a new object,
     # after onDocumentRestored() when the document is loaded after saving.
     def initWindow(self, obj):
         # Iterate existed windows

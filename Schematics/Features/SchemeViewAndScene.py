@@ -314,9 +314,9 @@ class SchemeGraphicsScene(QtWidgets.QGraphicsScene):
         self.snapItemsToGrid()
         super().mouseReleaseEvent(event)
 
-    # This method generate transaction
+    # This method generates a transaction
     def snapItemsToGrid(self) -> None:
-        # Snap items to grid after it's position is updated
+        # Snap items to grid after its position is updated
         items: list[Any] = []
         for item in self.selectedItems():
             if hasattr(item, "positionUpdated") and item.positionUpdated:

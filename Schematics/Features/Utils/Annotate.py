@@ -24,7 +24,7 @@ from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
 #: editor's ref always wins over this table.
 GROUP_PREFIXES: dict[str, str] = {
     "Resistors": "R",
-    "Realys": "K",        # relays / contactors
+    "Relays": "K",        # relays / contactors
     "Diodes": "VD",
     "Transistors": "VT",
     "Lamps": "H",
