@@ -1,0 +1,10 @@
+# Repository is LF-only: normalize to LF in the index and check out LF.
+# Without this, Windows checkouts with core.autocrlf=true (or a stray
+# editor using CRLF) would silently reintroduce mixed endings - several
+# files were committed with CRLF before this rule existed.
+* text=auto eol=lf
+
+# Known binaries: keep them out of any text/EOL processing outright
+# (auto-detection reads the first 8k, these must never be normalized).
+*.png binary
+*.qm binary
