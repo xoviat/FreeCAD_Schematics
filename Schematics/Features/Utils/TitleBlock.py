@@ -40,7 +40,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from PySide6 import QtCore, QtGui, QtSvg, QtSvgWidgets, QtWidgets
+from PySide6 import QtCore
 
 #: Natural size of the title block (matches the cartouche SVG).
 TB_WIDTH = 185.0
@@ -100,9 +100,14 @@ def patchTitleBlockSvg(texts: dict[str, str]) -> tuple[bytes, dict[str, tuple[fl
     """
     import xml.etree.ElementTree as ET
 
+    from Schematics.Features.Utils.SVGSymbolsCache import transformUnits
+
     path = titleBlockSvgPath()
     with open(path, "r", encoding="utf-8") as f:
         data = f.read()
+    # mm -> unitless: QSvgRenderer.defaultSize() must equal the viewBox
+    # or the child item renders ~3.5x too large (655x194 px vs 185x55)
+    data = transformUnits(data)
     root = ET.fromstring(data)
     values: dict[str, tuple[float, float, bool]] = {}
     for el in root.iter():
@@ -122,100 +127,3 @@ def patchTitleBlockSvg(texts: dict[str, str]) -> tuple[bytes, dict[str, tuple[fl
             centered = el.get("text-anchor") == "middle"
             values[value_key] = (x, y, centered)
     return ET.tostring(root, encoding="utf-8"), values
-
-
-class TitleBlockItem(QtWidgets.QGraphicsItem):
-    """Sheet-owned cartouche: fixed size, labels resolved at creation."""
-
-    def __init__(
-        self, sheet: Any, width: float = TB_WIDTH, height: float = TB_HEIGHT
-    ) -> None:
-        super().__init__()
-        self.sheet = sheet
-        self.width = float(width)
-        self.height = float(height)
-        self.valuePositions: dict[str, tuple[float, float, bool]] = {}
-        self.setZValue(-0.9)   # above the frame (-1), below wires (-0.5)
-
-        # Labels are inserted at creation time from the configured
-        # language; live values update on paint.
-        self.texts: dict[str, str] = titleBlockTexts()
-        try:
-            data, self.valuePositions = patchTitleBlockSvg(self.texts)
-            renderer = QtSvg.QSvgRenderer()
-            renderer.load(data)
-            if renderer.isValid():
-                svg = QtSvgWidgets.QGraphicsSvgItem(self)
-                svg.setSharedRenderer(renderer)
-                # Keep the renderer alive: setSharedRenderer does not take
-                # ownership, and a GC'd wrapper deletes the C++ renderer
-                # the item still points at (native AV on first paint).
-                self._renderer = renderer
-                svg.setFlags(
-                    QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemClipsToShape
-                )
-                svg.setMaximumCacheSize(QtCore.QSize(2000, 2000))
-                sx = self.width / TB_WIDTH
-                sy = self.height / TB_HEIGHT
-                svg.setTransform(QtGui.QTransform().scale(sx, sy), combine=False)
-                self._svg = svg
-        except Exception:
-            # Missing/broken cartouche template: live values alone still
-            # render (containment: never raise into the paint/scene path).
-            pass
-
-    def boundingRect(self) -> QtCore.QRectF:
-        return QtCore.QRectF(-0.5, -0.5, self.width + 1.0, self.height + 1.0)
-
-    def paint(
-        self,
-        painter: QtGui.QPainter,
-        option: QtWidgets.QStyleOptionGraphicsItem,
-        widget: QtWidgets.QWidget | None = None,
-    ) -> None:
-        g = painter
-        try:
-            self.sheet.Proxy   # liveness probe
-            color = QtGui.QColor.fromRgbF(
-                *self.sheet.Proxy.appearance.linesColor()
-            )
-        except (ReferenceError, RuntimeError, AttributeError):
-            return
-        values: dict[str, str] = {}
-        try:
-            from Schematics.Features.Utils.Sheets import pageIndex
-
-            values["title"] = str(self.sheet.Label)
-            page, total = pageIndex(self.sheet)
-            values["sheet"] = str(page)
-            values["sheets"] = str(total)
-        except (ReferenceError, RuntimeError, AttributeError, Exception):
-            pass
-
-        g.save()
-        g.scale(self.width / TB_WIDTH, self.height / TB_HEIGHT)
-        pen = QtGui.QPen(color, 0.4)
-        g.setPen(pen)
-        font = g.font()
-        font.setPixelSize(TB_FONT_PX)
-        font.setBold(False)
-        font.setItalic(False)
-        g.setFont(font)
-        box_w = 40.0
-        box_h = TB_FONT_PX * 1.6
-        base = int(
-            QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.TextFlag.TextSingleLine
-        )
-        for key, (x, y, centered) in self.valuePositions.items():
-            text = values.get(key, "")
-            if not text:
-                continue
-            align = base | int(
-                QtCore.Qt.AlignmentFlag.AlignHCenter if centered
-                else QtCore.Qt.AlignmentFlag.AlignLeft
-            )
-            rect = QtCore.QRectF(
-                x - box_w / 2.0 if centered else x, y - TB_FONT_PX, box_w, box_h
-            )
-            g.drawText(rect, align, text)
-        g.restore()

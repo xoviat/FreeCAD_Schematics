@@ -105,13 +105,15 @@ navigator) lists all pages with their symbol and wire counts. Real hierarchical 
 stretched to fit (exact for the A-series); `From template` hands the dimensions back to the
 SVG template's own viewBox.
 
-**Title block**: the GOST-style cartouche in the frame's bottom-right corner is a separate
-overlay (`Templates/TitleBlock.svg`) at a **fixed physical size on every page size** -
-controlled by the *View* properties **TitleBlockWidth**/**TitleBlockHeight** (defaults
-185x55 mm, `0` hides it). It shows the sheet title (the object's Label) and the live
-page/page-count; its label text is inserted at creation time from the configured language
-(see below). Sheet templates themselves are pure geometry (frame paths only) and can differ
-per sheet.
+**Title block**: the GOST-style cartouche in the frame's bottom-right corner is a real
+element in the sheet's **model tree** (like the BOM table) - it is inserted by default when
+a sheet is created, is selectable/deletable, and re-anchors itself whenever the template or
+page changes. It comes from `Templates/TitleBlock.svg` at a **fixed physical size on every
+page size** - controlled by the *View* properties **TitleBlockWidth**/**TitleBlockHeight**
+(defaults 185x55 mm, `0` hides it). It shows the sheet title (the object's Label) and the
+live page/page-count; its label text is inserted at creation time from the configured
+language (see below). Sheet templates themselves are pure geometry (frame paths only,
+white paper + frame) and can differ per sheet.
 
 ### Language and translations
 

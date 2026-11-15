@@ -16,7 +16,6 @@ from Schematics.Features.Utils.MDI import *
 from Schematics.Features.GridMixin import *
 import Schematics.Features.Utils.SoftMigration as SoftMigration
 from Schematics.Features.Utils.Sheets import PAPER_SIZES, paperSizeMm
-from Schematics.Features.Utils.TitleBlock import TitleBlockItem
 from Schematics.Utils import *
 
 
@@ -28,6 +27,10 @@ def CreateScheme():
     SchemeFeature(obj)
     SchemeViewProvider(obj.ViewObject)
     obj.Proxy.initWindow(obj)
+    # Default furniture: the title block is a real tree element, added
+    # on new sheets only (a deleted one stays deleted on reload)
+    from Schematics.Features.Items.TitleBlock import TitleBlock
+    TitleBlock(sheet=obj)
     #FreeCAD.ActiveDocument.commitTransaction()
     return obj
 
@@ -246,9 +249,13 @@ class SchemeFeature:
                     )
             page_w = float(obj.ViewObject.Width.Value)
             page_h = float(obj.ViewObject.Height.Value)
-            # Fixed-size title block (TitleBlock* View props), anchored to
-            # the frame's bottom-right corner - never scaled with the page
-            self._rebuildTitleBlock(obj, renderer, page_w, page_h)
+            # The title block element re-anchors to the new page/frame
+            for x in obj.Elements:
+                if getattr(x, "Type", "") == "TitleBlock" and hasattr(x.Proxy, "item"):
+                    try:
+                        x.Proxy.item.updateTransform()
+                    except (ReferenceError, RuntimeError, AttributeError):
+                        pass
             # Make margins around sheet for comfortable scrolling
             w = page_w * 0.25
             h = page_h * 0.25
@@ -261,58 +268,22 @@ class SchemeFeature:
                 QtCore.Qt.AspectRatioMode.KeepAspectRatio,
             )
 
-    def _rebuildTitleBlock(self, obj, renderer, page_w, page_h):
-        """(Re)create the fixed-size cartouche overlay.
-
-        Labels come from Templates/TitleBlock.svg placeholders filled
-        with the configured language's translation at creation time;
-        the item is anchored to the frame's bottom-right corner and
-        keeps its physical size on every page size.
-        """
-        old = getattr(self, "_titleBlockItem", None)
-        if old is not None:
-            try:
-                self.scene.removeItem(old)
-            except (ReferenceError, RuntimeError):
-                pass
-            self._titleBlockItem = None
-        width_prop = getattr(obj.ViewObject, "TitleBlockWidth", None)
-        height_prop = getattr(obj.ViewObject, "TitleBlockHeight", None)
-        width = float(width_prop.Value) if width_prop is not None else 185.0
-        height = float(height_prop.Value) if height_prop is not None else 55.0
-        if width <= 0 or height <= 0:
-            return   # hidden
-        vb = renderer.viewBoxF()
-        if vb.width() <= 0 or vb.height() <= 0:
-            return
-        if renderer.elementExists("frame"):
-            frame_bounds = renderer.boundsOnElement("frame")
-        else:
-            frame_bounds = vb
-        # Natural frame margins inside the page (they stretch with it)
-        margin_right = (vb.x() + vb.width()) - (frame_bounds.x() + frame_bounds.width())
-        margin_bottom = (vb.y() + vb.height()) - (frame_bounds.y() + frame_bounds.height())
-        scale_x = page_w / vb.width()
-        scale_y = page_h / vb.height()
-        item = TitleBlockItem(obj, width, height)
-        item.setPos(
-            page_w - margin_right * scale_x - width,
-            page_h - margin_bottom * scale_y - height,
-        )
-        self.scene.addItem(item)
-        self._titleBlockItem = item
-
-    def titleBlockRect(self):
-        """Scene rect of the title block, or None if hidden/absent.
-        Returns the logical block rect (the item's bounding rect also
-        includes +/-0.5 stroke slack)."""
-        item = getattr(self, "_titleBlockItem", None)
-        if item is None:
+    def titleBlockRect(self, obj=None):
+        """Scene rect of the title block element (logical size, without
+        the +/-0.5 stroke slack), or None if hidden/absent."""
+        obj = obj or getattr(self, "obj", None)
+        if obj is None:
             return None
         try:
-            return item.sceneBoundingRect().adjusted(0.5, 0.5, -0.5, -0.5)
+            for x in obj.Elements:
+                if getattr(x, "Type", "") == "TitleBlock" and hasattr(x.Proxy, "item"):
+                    item = x.Proxy.item
+                    if not item.isVisible():
+                        return None   # TitleBlock* = 0 hides the block
+                    return item.sceneBoundingRect().adjusted(0.5, 0.5, -0.5, -0.5)
         except (ReferenceError, RuntimeError):
             return None
+        return None
 
     def onSelect(self):
         # if Visibility == False this means that the window was closed by the user 

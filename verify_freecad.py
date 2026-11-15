@@ -519,6 +519,10 @@ def t_title_block():
     )
 
     v = sheet.ViewObject
+    # the cartouche is a real tree element, inserted by default
+    tbs = [o for o in sheet.Elements if getattr(o, "Type", "") == "TitleBlock"]
+    assert len(tbs) == 1, "default title block element missing"
+    assert tbs[0].Proxy.item is not None
     # defaults match the cartouche SVG's natural size
     assert abs(float(v.TitleBlockWidth.Value) - 185.0) < 0.01, v.TitleBlockWidth
     assert abs(float(v.TitleBlockHeight.Value) - 55.0) < 0.01, v.TitleBlockHeight
@@ -698,7 +702,7 @@ step("close document", t_close)
 def t_reload():
     FreeCAD.openDocument(DOC)
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    assert len(s.Elements) == 10, "restored sheet has %d elements" % len(s.Elements)
+    assert len(s.Elements) == 11, "restored sheet has %d elements" % len(s.Elements)
     assert hasattr(s.Proxy, "scene"), "scene not restored"
     # Wires are document objects: points and item must survive the round trip
     wires = [o for o in s.Elements if getattr(o, "Type", "") == "Wire"]
@@ -712,7 +716,8 @@ step("reload + onDocumentRestored", t_reload)
 def t_cleanup_api():
     # delete one element (onDelete path) then recompute
     s = [o for o in FreeCAD.ActiveDocument.Objects if hasattr(o, "Elements")][0]
-    victim = s.Elements[0]
+    # delete the Rectangle explicitly: Elements[0] is the default title block
+    victim = next(o for o in s.Elements if getattr(o, "Type", "") == "Rectangle")
     FreeCAD.ActiveDocument.removeObject(victim.Name)
     FreeCAD.ActiveDocument.recompute()
 step("delete element + recompute", t_cleanup_api)
