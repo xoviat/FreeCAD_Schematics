@@ -172,9 +172,9 @@ Select symbol(s) in sheet or in treeview. Press delete key on keyboard.
 ### Symbol library and editor
 
 `Ctrl+E` (or the toolbar button) opens the **symbol manager**: filter/search, preview with
-pins, and `New symbol…` / `Edit…` / `Duplicate` / `Import…` / `Import QET…` / `Delete…` /
-`Open folder` / `Refresh`. `New symbol…` creates a blank SVG in the chosen group and opens
-it in the **symbol editor**; `Edit…` (or double-click) opens the selected symbol.
+pins, and `New symbol…` / `Edit…` / `Duplicate` / `Import…` / `Delete…` / `Open folder` /
+`Refresh`. `New symbol…` creates a blank SVG in the chosen group and opens it in the
+**symbol editor**; `Edit…` (or double-click) opens the selected symbol.
 
 The editor draws directly in FreeCAD: **Select / Line / Rect / Circle / Polyline / Text /
 Pin** tools on a snap grid (0.5 mm, toggleable), wheel zoom, pan (drag empty space or the
@@ -199,22 +199,32 @@ backdrop - the built-in tools edit line/rect/circle/ellipse/polyline/text shapes
 existing symbols keep their original artwork byte-for-byte while pins and metadata stay
 fully editable.
 
-### Batch import QElectroTech elements
+### Import symbols from a folder
 
-`Import QET…` in the symbol manager converts a folder of QElectroTech `.elmt` files into
-store symbols in one pass - the way to grow the library from QET's ~8000-element
-collection. Point it at a checkout of
+`Import…` in the symbol manager asks for a **folder** first, then opens a selection
+dialog listing everything in it - store-format `.svg` files and QElectroTech `.elmt`
+elements alike, each with its type and category path. Filter, tick (or *Select all
+visible*), then choose the target group, **(by category)** - each symbol goes to a group
+mirroring its source category path, nested like the source tree - or type a new group
+name, and import. Names already in the store are skipped, so re-running an import is
+harmless, and the completion summary is **bounded**: counts plus the first few names or
+failures and a "+ N more" line, never a wall of text.
+
+Point it at a checkout of
 [`qelectrotech/qelectrotech-elements`](https://github.com/qelectrotech/qelectrotech-elements)
-or the `elements/` directory of an installed QElectroTech: it scans recursively, lists
-every element with its category path, and lets you filter, tick (or *Select all visible*)
-and pick the target group. Names already in the store are skipped, so re-running an
-import is harmless, and the summary reports what was imported, skipped and why anything
-failed.
+(~9000 elements) or the `elements/` directory of an installed QElectroTech to grow the
+library in bulk.
 
-Each element becomes an ordinary store SVG. QET's drawing primitives map to the editor's
-native line/rect/circle/ellipse/polyline/text shapes, so imported artwork stays editable;
-arcs and dashed lines (mechanical links) become backdrop `<path>`s that saving keeps
-byte-for-byte; `<terminal>` pins become `schematics:pin` rects named `x1..xN`; and
+Scanning and writing run on a **worker thread** with a progress bar and a Cancel button:
+the dialog stays responsive while a full 9k-file tree is listed, and the selection list
+is a model/view pair so filtering never materialises thousands of table items. Cancelling
+stops between files, never mid-symbol, and every SVG is copied LF-only like the rest of
+the repository.
+
+Each QET element becomes an ordinary store SVG. QET's drawing primitives map to the
+editor's native line/rect/circle/ellipse/polyline/text shapes, so imported artwork stays
+editable; arcs and dashed lines (mechanical links) become backdrop `<path>`s that saving
+keeps byte-for-byte; `<terminal>` pins become `schematics:pin` rects named `x1..xN`; and
 `<dynamic_text>` labels are dropped because the workbench draws designator and value
 itself. Coordinates are scaled at 0.5 mm per QET unit, which lands a typical contact at
 ~21 mm - the size of the store's own symbols - while the English name
@@ -360,10 +370,10 @@ properties dialog `E`, cursor-follow move `M`) are deliberately not bound.
 ### Testing
 
 * `python install.py` copies the workbench into FreeCAD's user Mod directory (restart FreeCAD afterwards).
-* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (33 steps): commands, dialogs, save/reload
+* `FreeCAD.exe verify_freecad.py` - the end-to-end suite (34 steps): commands, dialogs, save/reload
   persistence, hotkey registration, reports, the wire-drawing state machine and the title block.
-  It writes `_fc_verify.log`; a good run ends with `RESULT: 33 PASS / 0 FAIL` and exit code 0.
-* `FreeCADCmd.exe verify_imports.py` - module import smoke test (35 modules).
+  It writes `_fc_verify.log`; a good run ends with `RESULT: 34 PASS / 0 FAIL` and exit code 0.
+* `FreeCADCmd.exe verify_imports.py` - module import smoke test (36 modules).
 * Known gotcha: verify steps must **not** call `deleteLater()` on dialogs - a pending deferred
   delete races the script's hard `os._exit(0)` and trips a GILState fatal (exit 127). Steps use
   plain scope-exit destruction instead; the chooser step documents this in place.

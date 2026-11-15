@@ -1026,13 +1026,16 @@ def t_close_no_stale_window():
     assert tryToGetSchemeFromActiveWindow() is None
 step("close document leaves no stale window", t_close_no_stale_window)
 
-def t_qet_import():
-    # Batch import of QElectroTech .elmt files (Utils.QETImport): parse a
-    # fixture covering every primitive, convert into a temp store, then
-    # read the pins back through the catalog. No network, no QET install.
+def t_folder_import():
+    # Folder import (Utils.BatchImport + QETImport): a fixture with a QET
+    # element covering every primitive plus store SVGs (one written with
+    # CRLF), scanned and converted into a temp store, then read back
+    # through the catalog. No network, no QET install.
     import shutil
+    from Schematics.Features.Utils.BatchImport import (
+        ImportItem, importSymbolItems, scanImportFolder)
     from Schematics.Features.Utils.QETImport import (
-        findQETElements, importQETFiles, scanQETElements, symbolStem)
+        findQETElements, scanQETElements, symbolStem)
     from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
     from Schematics.Features.Utils.SymbolDrawing import readSymbol
 
@@ -1070,6 +1073,19 @@ def t_qet_import():
     with open(path, "w", encoding="utf-8", newline="") as handle:
         handle.write(fixture)
 
+    # A store-format SVG beside it, written with CRLF on purpose: the
+    # copy must land in the store LF-only like the rest of the repo.
+    svg_src = os.path.join(root, "Widget.svg")
+    with open(svg_src, "w", encoding="utf-8", newline="") as handle:
+        handle.write(
+            '<?xml version="1.0" encoding="UTF-8"?>\r\n'
+            '<svg width="20mm" height="20mm" version="1.1" '
+            'viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\r\n'
+            '<rect x="4" y="4" width="12" height="12" fill="none" '
+            'stroke="#000000" stroke-width="0.5"/>\r\n'
+            "</svg>\r\n"
+        )
+
     found = findQETElements(root)
     assert found == [path], found
     infos = scanQETElements(root)
@@ -1079,10 +1095,20 @@ def t_qet_import():
     assert infos[0].stem == "Contactor Main make contact", infos[0].stem
     assert symbolStem('a\\b:c*d?e"f<g>h|i') == "a b c d e f g h i"
 
+    # The combined folder scan sees both kinds.
+    items = scanImportFolder(root)
+    kinds = {(item.kind, item.name) for item in items}
+    assert ("qet", "Contactor / Main make contact") in kinds, kinds
+    assert ("svg", "Widget") in kinds, kinds
+    assert len(items) == 2, [item.path for item in items]
+
     dest = os.path.join(store, "Relays")
-    report = importQETFiles(found, dest)
+    report = importSymbolItems(items, dest)
     assert not report.failed, report.failed
-    assert report.imported == ["Contactor Main make contact"], report.imported
+    assert not report.cancelled, report
+    assert sorted(report.imported) == [
+        "Contactor Main make contact", "Widget"
+    ], report.imported
 
     catalog = SymbolCatalog(root=store)
     entry = catalog.find("Contactor Main make contact", "Relays")
@@ -1102,20 +1128,124 @@ def t_qet_import():
     assert abs(pins[0].x - 7.0) < 1e-6 and abs(pins[0].y - 0.0) < 1e-6, pins
     assert abs(pins[1].x - 7.0) < 1e-6 and abs(pins[1].y - 30.0) < 1e-6, pins
 
-    again = importQETFiles(found, dest)
-    assert again.imported == [], again
-    assert again.skipped == ["Contactor Main make contact"], again
+    widget = catalog.find("Widget", "Relays")
+    assert widget is not None, [e.key for e in catalog.all()]
+    with open(widget.path, "rb") as handle:
+        blob = handle.read()
+    assert b"<svg" in blob, blob[:80]
+    assert b"\r" not in blob, "CRLF leaked through the SVG copy"
 
+    # Re-importing the same folder changes nothing.
+    again = importSymbolItems(items, dest)
+    assert again.imported == [], again
+    assert sorted(again.skipped) == [
+        "Contactor Main make contact", "Widget"
+    ], again.skipped
+
+    # By category, each item lands in a group mirroring its category path
+    # (nested, "/"-separated); an empty category means the store root.
+    cat_report = importSymbolItems(items, store, groupByCategory=True)
+    assert not cat_report.failed, cat_report
+    nested = os.path.join(
+        store, "10_electric", "test", "Contactor Main make contact.svg"
+    )
+    assert os.path.exists(nested), nested
+    assert os.path.exists(os.path.join(store, "Widget.svg")), cat_report
+    catalog.refresh()
+    nested_entry = catalog.find(
+        "Contactor Main make contact", "10_electric\\test"
+    )
+    assert nested_entry is not None, [e.key for e in catalog.all()]
+    assert catalog.find("Widget") is not None, "root-category import"
+    # ...and the second run skips both: the check is per destination.
+    again_cat = importSymbolItems(items, store, groupByCategory=True)
+    assert again_cat.imported == [], again_cat
+    assert len(again_cat.skipped) == 2, again_cat
+
+    # Cancellation is polled before each item: a cancelled run writes
+    # nothing at all (the destination folder itself still exists).
+    cancel_dest = os.path.join(store, "Pneumatic")
+    stopped = importSymbolItems(items, cancel_dest, cancelled=lambda: True)
+    assert stopped.cancelled and not stopped.imported, stopped
+    written = [
+        name for name in os.listdir(cancel_dest) if name.endswith(".svg")
+    ]
+    assert written == [], written
+
+    # A corrupt element and a non-SVG .svg both fail with a reason.
     bad = os.path.join(group_dir, "broken.elmt")
     with open(bad, "w", encoding="utf-8", newline="") as handle:
         handle.write("not xml at all")
-    broken = importQETFiles([bad], dest)
-    assert len(broken.failed) == 1, broken
-    assert broken.failed[0][1], broken.failed
+    junk = os.path.join(root, "junk.svg")
+    with open(junk, "w", encoding="utf-8", newline="") as handle:
+        handle.write("<html>not a symbol</html>")
+    bad_items = [
+        ImportItem(bad, "broken", "10_electric/test", "qet"),
+        ImportItem(junk, "junk", "", "svg"),
+    ]
+    broken = importSymbolItems(bad_items, dest)
+    assert len(broken.failed) == 2, broken
+    assert all(reason for _path, reason in broken.failed), broken.failed
+    assert not os.path.exists(os.path.join(dest, "broken.svg"))
+    assert not os.path.exists(os.path.join(dest, "junk.svg"))
 
     shutil.rmtree(root, ignore_errors=True)
     shutil.rmtree(store_root, ignore_errors=True)
-step("QET batch import", t_qet_import)
+step("folder import (SVG + QET, cancel)", t_folder_import)
+
+def t_import_dialog_model():
+    # The import dialog's model/view: rows live in the model (not in
+    # thousands of table items), and check state round-trips through the
+    # int role payloads Qt delivers - CheckState is not an IntEnum, so
+    # the model sends .value and accepts either shape back.
+    from PySide6 import QtCore
+    from Schematics.Features.Dialogs.ImportDialog import (
+        _FilterProxy, _ImportModel)
+    from Schematics.Features.Utils.BatchImport import ImportItem
+
+    model = _ImportModel()
+    model.setItems([
+        ImportItem("/a/Widget.svg", "Widget", "", "svg"),
+        ImportItem("/b/Coil.elmt", "Coil", "10_electric/310", "qet"),
+    ])
+    assert model.rowCount() == 2, model.rowCount()
+    assert model.columnCount() == 4, model.columnCount()
+    name = model.index(0, _ImportModel.NAME)
+    assert model.data(name) == "Widget", model.data(name)
+    assert model.data(model.index(1, _ImportModel.KIND)) == "QET"
+    assert model.data(model.index(1, _ImportModel.CATEGORY)) == "10_electric/310"
+    assert model.headerData(
+        _ImportModel.CATEGORY, QtCore.Qt.Orientation.Horizontal
+    ) == "Category"
+
+    check = model.index(0, _ImportModel.CHECK)
+    role_enum = QtCore.Qt.ItemDataRole.CheckStateRole
+    role_int = int(role_enum)
+    flags = model.flags(check)
+    assert flags & QtCore.Qt.ItemFlag.ItemIsUserCheckable, flags
+    assert not (model.flags(name) & QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+    assert model.data(check, role_enum) == 0, "starts unchecked"
+    # enum payload and int payload both arrive as "checked"
+    assert model.setData(check, QtCore.Qt.CheckState.Checked, role_int)
+    assert model.data(check, role_int) == QtCore.Qt.CheckState.Checked.value
+    assert model.checkedPaths() == ["/a/Widget.svg"], model.checkedPaths()
+    assert model.setData(check, QtCore.Qt.CheckState.Unchecked.value, role_enum)
+    assert model.checkedCount() == 0, model.checkedCount()
+    model.setChecked(["/b/Coil.elmt"], True)
+    assert model.checkedCount() == 1
+
+    proxy = _FilterProxy()
+    proxy.setSourceModel(model)
+    assert proxy.rowCount() == 2, proxy.rowCount()
+    proxy.setNeedle("coil")
+    assert proxy.rowCount() == 1, proxy.rowCount()
+    source = proxy.mapToSource(proxy.index(0, _ImportModel.NAME))
+    assert model.itemAt(source.row()).name == "Coil", source.row()
+    proxy.setNeedle("10_electric")
+    assert proxy.rowCount() == 1, proxy.rowCount()
+    proxy.setNeedle("")
+    assert proxy.rowCount() == 2, proxy.rowCount()
+step("import dialog model/view", t_import_dialog_model)
 
 n_pass = len([line for line in lines if line.startswith("PASS")])
 n_fail = len([line for line in lines if line.startswith("FAIL")])

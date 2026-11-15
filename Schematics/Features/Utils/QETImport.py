@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ###############################################################################
 #
-#  QETImport.py - batch import of QElectroTech .elmt files into the store.
+#  QETImport.py - parse and convert QElectroTech .elmt elements.
 #
 ###############################################################################
 """Convert QElectroTech elements into store-format SVG symbols.
@@ -15,9 +15,9 @@ module turns those files into the SVG files the symbol store keeps:
   (line, rect, circle, ellipse, polyline, text) so imported artwork stays
   editable in the editor, and a backdrop ``<path>`` otherwise (arcs, and
   anything carrying a dash pattern the shape model does not hold);
-* ``<terminal>`` elements become ``schematics:pin`` rects written through
-  :func:`SymbolDrawing.writeSymbol`, named ``x1..xN`` like every other
-  store symbol;
+* ``<terminal>`` elements become ``schematics:pin`` rects applied through
+  :func:`SymbolDrawing.renderSymbol`, named ``x1..xN`` like every other
+  store symbol (in memory, so the batch layer writes each file once);
 * ``<dynamic_text>`` labels are dropped - the workbench draws designator
   and value itself;
 * coordinates are moved onto the content bounding box and scaled by
@@ -27,7 +27,9 @@ module turns those files into the SVG files the symbol store keeps:
 Nothing here reaches the network or QET's installation: point it at a
 folder of ``.elmt`` files - a checkout of the official
 ``qelectrotech/qelectrotech-elements`` repository works, as does the
-``elements/`` directory of an installed QElectroTech.
+``elements/`` directory of an installed QElectroTech.  Folder discovery
+of *both* file kinds and the batched writing loop live in
+:mod:`Schematics.Features.Utils.BatchImport`.
 """
 
 from __future__ import annotations
@@ -36,12 +38,11 @@ import math
 import os
 import re
 import xml.etree.ElementTree as ET
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from xml.sax.saxutils import unescape
 
 from Schematics.Features.Utils.SymbolCatalog import SymbolPin
-from Schematics.Features.Utils.SymbolDrawing import writeSymbol
+from Schematics.Features.Utils.SymbolDrawing import renderSymbol
 
 # QET element units -> store millimetres.  QET draws a contact roughly
 # 42 units tall, so 0.5 mm/unit lands it at ~21 mm - the size of the
@@ -55,6 +56,9 @@ _WS = re.compile(r"\s+")
 # files) only needs the display name, and parsing every file with
 # ElementTree just to list it took ~8 s where this takes ~2.
 _NAME_RE = re.compile(r'<name\s+lang="([^"]*)"\s*>(.*?)</name>', re.DOTALL)
+# <names> comes right after <uuid> in every .elmt, so a prefix read picks
+# the names out without touching the rest of the file.
+_NAME_PREFIX_BYTES = 8192
 # QET font strings: "Liberation Sans,9,-1,5,50,0,0,0,0,0,Regular".
 _FONT_SIZE_RE = re.compile(r"^[^,]*,(\d+(?:\.\d+)?)")
 _POINTS_PER_MM = 25.4 / 72.0
@@ -92,19 +96,9 @@ class QETSymbol:
 
     stem: str
     name: str
-    svg: str                       # full file text, pins added on write
+    svg: str                       # complete file text, pins included
     pins: list[SymbolPin]
     notes: tuple[str, ...] = ()    # what was skipped during conversion
-
-
-@dataclass(frozen=True)
-class QETImportReport:
-    """Outcome of a batch import."""
-
-    imported: list[str]
-    skipped: list[str]                 # already in the store
-    failed: list[tuple[str, str]]      # (path, reason)
-    notes: list[str] = field(default_factory=list)
 
 
 # ----------------------------------------------------------------------
@@ -236,7 +230,7 @@ def scanQETElements(root: str) -> list[QETElementInfo]:
             QETElementInfo(
                 path=path,
                 name=name,
-                category=_categoryOf(path, root),
+                category=categoryOf(path, root),
                 stem=symbolStem(name),
             )
         )
@@ -244,7 +238,8 @@ def scanQETElements(root: str) -> list[QETElementInfo]:
     return infos
 
 
-def _categoryOf(path: str, root: str) -> str:
+def categoryOf(path: str, root: str) -> str:
+    """Folder of *path* relative to *root*, '/'-separated ("" at root)."""
     folder = os.path.dirname(os.path.relpath(path, root))
     return "" if folder in (".", "") else folder.replace(os.sep, "/")
 
@@ -437,12 +432,24 @@ def _displayName(names: dict[str, str], fallback: str) -> str:
 
 
 def _quickNames(path: str) -> dict[str, str]:
-    """``<name lang=...>`` pairs read as text, in document order."""
+    """``<name lang=...>`` pairs read as text, in document order.
+
+    Only a file whose names start unusually late costs the full read.
+    """
     try:
+        with open(path, "rb") as handle:
+            names = _namesFromText(
+                handle.read(_NAME_PREFIX_BYTES).decode("utf-8", "replace")
+            )
+        if names:
+            return names
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            data = handle.read()
+            return _namesFromText(handle.read())
     except OSError:
         return {}
+
+
+def _namesFromText(data: str) -> dict[str, str]:
     names: dict[str, str] = {}
     for lang, text in _NAME_RE.findall(data):
         text = unescape(text).strip()
@@ -684,51 +691,12 @@ def convertQETFile(path: str) -> QETSymbol:
     return QETSymbol(
         stem=symbolStem(name),
         name=name,
-        svg=svg,
+        # Pins and description applied in memory: the batch layer writes
+        # this text once instead of writing and then rewriting it.
+        svg=renderSymbol(svg, pins, description=name),
         pins=pins,
         notes=tuple(notes),
     )
 
 
-# ----------------------------------------------------------------------
-# Batch write
-# ----------------------------------------------------------------------
-def importQETFiles(paths: Sequence[str], destDir: str) -> QETImportReport:
-    """Convert *paths* into ``destDir``, skipping names already present."""
-    os.makedirs(destDir, exist_ok=True)
-    imported: list[str] = []
-    skipped: list[str] = []
-    failed: list[tuple[str, str]] = []
-    notes: list[str] = []
-    for path in paths:
-        try:
-            symbol = convertQETFile(path)
-        except QETImportError as exc:
-            failed.append((path, str(exc)))
-            continue
-        except Exception as exc:  # one bad file must not stop the batch
-            failed.append((path, "%s: %s" % (type(exc).__name__, exc)))
-            continue
-        dest = os.path.join(destDir, symbol.stem + ".svg")
-        if symbol.stem in imported or os.path.exists(dest):
-            skipped.append(symbol.stem)
-            continue
-        try:
-            with open(dest, "w", encoding="utf-8", newline="") as handle:
-                handle.write(symbol.svg)
-            writeSymbol(dest, symbol.pins, description=symbol.name)
-        except (OSError, ValueError) as exc:
-            failed.append((path, "write failed: %s" % exc))
-            try:
-                os.remove(dest)
-            except OSError:
-                pass
-            continue
-        imported.append(symbol.stem)
-        for note in symbol.notes:
-            entry = "%s: %s" % (symbol.stem, note)
-            if entry not in notes:
-                notes.append(entry)
-    return QETImportReport(
-        imported=imported, skipped=skipped, failed=failed, notes=notes
-    )
+# (Folder-level discovery and the batched write loop live in BatchImport.)

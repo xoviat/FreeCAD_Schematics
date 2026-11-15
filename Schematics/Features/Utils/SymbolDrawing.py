@@ -510,18 +510,22 @@ def createNewSymbol(root: str, group: str, name: str) -> str:
     return path
 
 
-def writeSymbol(
-    path: str,
+def renderSymbol(
+    data: str,
     pins: list[SymbolPin],
     description: str | None = None,
     ref: str | None = None,
-) -> None:
-    """Rewrite a symbol file: replace all pin rects and (optionally) the
-    root-tag metadata, leaving the drawing content byte-identical."""
-    with open(path, "r", encoding="utf-8") as handle:
-        data = handle.read()
+) -> str:
+    """Symbol file *contents* with pin rects and (optionally) the
+    root-tag metadata applied, leaving the drawing content
+    byte-identical.
+
+    The string-level half of :func:`writeSymbol`, for callers that hold
+    the text already - the batch importer writes each file once instead
+    of writing it and rewriting it for the pins.
+    """
     if not _ROOT_TAG_RE.search(data) or "</svg>" not in data:
-        raise ValueError("not a symbol file (no <svg>/</svg>): " + path)
+        raise ValueError("not a symbol file (no <svg>/</svg>)")
     data = _PIN_RECT_RE.sub("", data)
     pin_xml = "".join(
         '<rect schematics:pin="%s" x="%s" y="%s"/>\n'
@@ -543,6 +547,22 @@ def writeSymbol(
             if ref is not None:
                 new_tag = _setRootAttr(new_tag, "schematics:ref", ref)
             data = data.replace(tag, new_tag, 1)
+    return data
+
+
+def writeSymbol(
+    path: str,
+    pins: list[SymbolPin],
+    description: str | None = None,
+    ref: str | None = None,
+) -> None:
+    """Rewrite a symbol file: replace all pin rects and (optionally) the
+    root-tag metadata, leaving the drawing content byte-identical."""
+    with open(path, "r", encoding="utf-8") as handle:
+        data = handle.read()
+    if not _ROOT_TAG_RE.search(data) or "</svg>" not in data:
+        raise ValueError("not a symbol file (no <svg>/</svg>): " + path)
+    data = renderSymbol(data, pins, description, ref)
     with open(path, "w", encoding="utf-8", newline="") as handle:
         handle.write(data)
 

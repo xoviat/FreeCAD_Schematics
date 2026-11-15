@@ -36,7 +36,7 @@ from Schematics.Features.Utils.SymbolCatalog import (
     SymbolPin,
 )
 from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
-from Schematics.Features.Dialogs.QETImportDialog import QETImportDialog
+from Schematics.Features.Dialogs.ImportDialog import ImportDialog
 from Schematics.Features.Utils.SVGSymbolsCache import invalidate
 from Schematics.Features.Utils.SymbolDrawing import (
     createNewSymbol,
@@ -95,9 +95,7 @@ class SymbolManager(QtWidgets.QDialog):
         self.dupBtn = QtWidgets.QPushButton("Duplicate", self)
         self.dupBtn.clicked.connect(self._duplicate)
         self.importBtn = QtWidgets.QPushButton("Import…", self)
-        self.importBtn.clicked.connect(self._importSvg)
-        self.importQetBtn = QtWidgets.QPushButton("Import QET…", self)
-        self.importQetBtn.clicked.connect(self._importQET)
+        self.importBtn.clicked.connect(self._importFolder)
         self.deleteBtn = QtWidgets.QPushButton("Delete…", self)
         self.deleteBtn.clicked.connect(self._delete)
         folderBtn = QtWidgets.QPushButton("Open folder", self)
@@ -116,7 +114,7 @@ class SymbolManager(QtWidgets.QDialog):
         left.addWidget(self.table, 1)
         actions = QtWidgets.QHBoxLayout()
         for button in (self.newBtn, self.editBtn, self.dupBtn,
-                       self.importBtn, self.importQetBtn, self.deleteBtn):
+                       self.importBtn, self.deleteBtn):
             actions.addWidget(button)
         left.addLayout(actions)
         leftWidget = QtWidgets.QWidget(self)
@@ -270,45 +268,18 @@ class SymbolManager(QtWidgets.QDialog):
         self._refresh(keepSelection=None)
         self._selectByName(os.path.basename(target))
 
-    def _importSvg(self) -> None:
-        fileName, _filter = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Import symbol SVG", "", "SVG files (*.svg)"
+    def _importFolder(self) -> None:
+        """Pick a folder; the dialog finds .svg and .elmt symbols in it."""
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Folder with symbols to import", ImportDialog.lastFolder
         )
-        if not fileName:
+        if not folder:
             return
-        groups = list(self.catalog.groups())
-        labels = [g if g else "(root)" for g in groups]
-        label, ok = QtWidgets.QInputDialog.getItem(
-            self, "Import symbol", "Target group:", labels, 0, False
-        )
-        if not ok:
-            return
-        group = groups[labels.index(label)] if label in labels else ""
-        dest_dir = (
-            os.path.join(self.catalog.root, group) if group else self.catalog.root
-        )
-        os.makedirs(dest_dir, exist_ok=True)
-        base = os.path.basename(fileName)
-        stem, ext = os.path.splitext(base)
-        target = os.path.join(dest_dir, base)
-        suffix = 2
-        while os.path.exists(target):
-            target = os.path.join(dest_dir, "%s%d%s" % (stem, suffix, ext))
-            suffix += 1
-        try:
-            shutil.copy2(fileName, target)
-        except OSError as exc:
-            QtWidgets.QMessageBox.warning(
-                self, "Symbol manager", "Import failed: %s" % exc
-            )
-            return
-        self._refresh()
-        self._selectByName(os.path.splitext(os.path.basename(target))[0])
-
-    def _importQET(self) -> None:
-        """Batch-convert a folder of QElectroTech .elmt files."""
-        dialog = QETImportDialog(
-            self.catalog, self, onImported=lambda: self._refresh()
+        dialog = ImportDialog(
+            folder,
+            self.catalog,
+            parent=self,
+            onImported=lambda: self._refresh(),
         )
         dialog.exec()
         self._refresh()
