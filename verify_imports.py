@@ -17,7 +17,9 @@ mods = [
  'Schematics.Features.Utils.MDI', 'Schematics.Features.Utils.ActionsReplacer',
  'Schematics.Features.Utils.Printing', 'Schematics.Features.Observers',
  'Schematics.Features.Utils.SymbolDrawing',
+ 'Schematics.Features.Utils.QETImport',
  'Schematics.Features.Dialogs.SymbolEditor',
+ 'Schematics.Features.Dialogs.QETImportDialog',
 ]
 fails = 0
 for m in mods:

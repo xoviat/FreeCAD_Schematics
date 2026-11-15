@@ -1026,6 +1026,97 @@ def t_close_no_stale_window():
     assert tryToGetSchemeFromActiveWindow() is None
 step("close document leaves no stale window", t_close_no_stale_window)
 
+def t_qet_import():
+    # Batch import of QElectroTech .elmt files (Utils.QETImport): parse a
+    # fixture covering every primitive, convert into a temp store, then
+    # read the pins back through the catalog. No network, no QET install.
+    import shutil
+    from Schematics.Features.Utils.QETImport import (
+        findQETElements, importQETFiles, scanQETElements, symbolStem)
+    from Schematics.Features.Utils.SymbolCatalog import SymbolCatalog
+    from Schematics.Features.Utils.SymbolDrawing import readSymbol
+
+    root = os.path.join(_HERE, "_fc_qet_fixture")
+    store_root = os.path.join(_HERE, "_fc_qet_store")
+    store = os.path.join(store_root, "GOST")
+    shutil.rmtree(root, ignore_errors=True)
+    shutil.rmtree(store_root, ignore_errors=True)
+    group_dir = os.path.join(root, "10_electric", "test")
+    os.makedirs(group_dir, exist_ok=True)
+    fixture = """<?xml version="1.0" encoding="UTF-8"?>
+<definition version="0.100.0" type="element" link_type="simple" width="30" height="60" hotspot_x="20" hotspot_y="30">
+ <uuid uuid="{00000000-0000-0000-0000-000000000001}"/>
+ <names>
+  <name lang="fr">Contact principal</name>
+  <name lang="en">Contactor / Main make contact</name>
+ </names>
+ <description>
+  <line x1="0" y1="-20" x2="0" y2="-40" end1="none" end2="none" length1="1.5" length2="1.5" style="line-style:normal;line-weight:normal;filling:none;color:black" antialias="false"/>
+  <line x1="0" y1="0" x2="0" y2="20" end1="none" end2="none" length1="1.5" length2="1.5" style="line-style:normal;line-weight:normal;filling:none;color:black" antialias="false"/>
+  <polygon x1="0" y1="0" x2="-8" y2="-23" closed="false" antialias="false" style="line-style:normal;line-weight:normal;filling:none;color:black"/>
+  <rect x="-10" y="-30" width="6" height="8" rx="0" ry="0" antialias="false" style="line-style:normal;line-weight:normal;filling:none;color:black"/>
+  <arc x="-2.5" y="-24.5" width="5" height="5" start="90" angle="180" style="line-style:normal;line-weight:normal;filling:none;color:black" antialias="true"/>
+  <text x="-14" y="-5" font="Liberation Sans,9,-1,5,50,0,0,0,0,0,Regular" color="#000000" text="K&gt;" rotation="0"/>
+  <dynamic_text uuid="{00000000-0000-0000-0000-000000000002}" keep_visual_rotation="false" y="-25" z="4" Valignment="AlignTop" x="4" font="Liberation Sans,8,-1,5,50,0,0,0,0,0,Regular" text_from="ElementInfo" text_width="-1" Halignment="AlignLeft" rotation="0" frame="false">
+   <text></text>
+   <info_name>label</info_name>
+  </dynamic_text>
+  <terminal uuid="{00000000-0000-0000-0000-000000000003}" type="Generic" orientation="n" y="-40" x="0" name=""/>
+  <terminal uuid="{00000000-0000-0000-0000-000000000004}" type="Generic" orientation="s" y="20" x="0" name=""/>
+ </description>
+</definition>
+"""
+    path = os.path.join(group_dir, "contactor_main.elmt")
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(fixture)
+
+    found = findQETElements(root)
+    assert found == [path], found
+    infos = scanQETElements(root)
+    assert len(infos) == 1, infos
+    assert infos[0].name == "Contactor / Main make contact", infos[0].name
+    assert infos[0].category == "10_electric/test", infos[0].category
+    assert infos[0].stem == "Contactor Main make contact", infos[0].stem
+    assert symbolStem('a\\b:c*d?e"f<g>h|i') == "a b c d e f g h i"
+
+    dest = os.path.join(store, "Relays")
+    report = importQETFiles(found, dest)
+    assert not report.failed, report.failed
+    assert report.imported == ["Contactor Main make contact"], report.imported
+
+    catalog = SymbolCatalog(root=store)
+    entry = catalog.find("Contactor Main make contact", "Relays")
+    assert entry is not None, [e.key for e in catalog.all()]
+    desc, _ref, pins = readSymbol(entry.path)
+    assert desc == "Contactor / Main make contact", desc
+    assert [p.name for p in pins] == ["x1", "x2"], pins
+    # bbox y -40..20 scales to 30 mm; terminals (0,-40)/(0,20) land at
+    # (7,0)/(7,30) after the x offset of -14.
+    with open(entry.path, encoding="utf-8") as handle:
+        text = handle.read()
+    assert 'height="30mm"' in text, text[:240]
+    assert 'width="3"' in text, "scaled artwork rect missing"
+    assert "dynamic_text" not in text, "label leaked into the symbol"
+    assert "<path" in text, "arc did not become a backdrop path"
+    assert "<polyline" in text and "<line" in text, text
+    assert abs(pins[0].x - 7.0) < 1e-6 and abs(pins[0].y - 0.0) < 1e-6, pins
+    assert abs(pins[1].x - 7.0) < 1e-6 and abs(pins[1].y - 30.0) < 1e-6, pins
+
+    again = importQETFiles(found, dest)
+    assert again.imported == [], again
+    assert again.skipped == ["Contactor Main make contact"], again
+
+    bad = os.path.join(group_dir, "broken.elmt")
+    with open(bad, "w", encoding="utf-8", newline="") as handle:
+        handle.write("not xml at all")
+    broken = importQETFiles([bad], dest)
+    assert len(broken.failed) == 1, broken
+    assert broken.failed[0][1], broken.failed
+
+    shutil.rmtree(root, ignore_errors=True)
+    shutil.rmtree(store_root, ignore_errors=True)
+step("QET batch import", t_qet_import)
+
 n_pass = len([line for line in lines if line.startswith("PASS")])
 n_fail = len([line for line in lines if line.startswith("FAIL")])
 log("RESULT: %d PASS / %d FAIL" % (n_pass, n_fail))

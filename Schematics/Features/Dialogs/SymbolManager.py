@@ -36,6 +36,7 @@ from Schematics.Features.Utils.SymbolCatalog import (
     SymbolPin,
 )
 from Schematics.Features.Dialogs.SymbolEditor import SymbolEditor
+from Schematics.Features.Dialogs.QETImportDialog import QETImportDialog
 from Schematics.Features.Utils.SVGSymbolsCache import invalidate
 from Schematics.Features.Utils.SymbolDrawing import (
     createNewSymbol,
@@ -95,6 +96,8 @@ class SymbolManager(QtWidgets.QDialog):
         self.dupBtn.clicked.connect(self._duplicate)
         self.importBtn = QtWidgets.QPushButton("Import…", self)
         self.importBtn.clicked.connect(self._importSvg)
+        self.importQetBtn = QtWidgets.QPushButton("Import QET…", self)
+        self.importQetBtn.clicked.connect(self._importQET)
         self.deleteBtn = QtWidgets.QPushButton("Delete…", self)
         self.deleteBtn.clicked.connect(self._delete)
         folderBtn = QtWidgets.QPushButton("Open folder", self)
@@ -113,7 +116,7 @@ class SymbolManager(QtWidgets.QDialog):
         left.addWidget(self.table, 1)
         actions = QtWidgets.QHBoxLayout()
         for button in (self.newBtn, self.editBtn, self.dupBtn,
-                       self.importBtn, self.deleteBtn):
+                       self.importBtn, self.importQetBtn, self.deleteBtn):
             actions.addWidget(button)
         left.addLayout(actions)
         leftWidget = QtWidgets.QWidget(self)
@@ -301,6 +304,14 @@ class SymbolManager(QtWidgets.QDialog):
             return
         self._refresh()
         self._selectByName(os.path.splitext(os.path.basename(target))[0])
+
+    def _importQET(self) -> None:
+        """Batch-convert a folder of QElectroTech .elmt files."""
+        dialog = QETImportDialog(
+            self.catalog, self, onImported=lambda: self._refresh()
+        )
+        dialog.exec()
+        self._refresh()
 
     def _delete(self) -> None:
         entry = self._selected()
