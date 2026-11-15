@@ -49,6 +49,10 @@ from Schematics.Features.Utils.SymbolDrawing import renderSymbol
 # store's own 20 mm symbols - while keeping imported symbols at their
 # QET-relative proportions to each other.
 SCALE = 0.5
+# Symbols made of a single line (or a point) get a zero-size content box,
+# and SVG cannot render a zero-width/height viewBox - grow each
+# degenerate axis to at least this many millimetres of output.
+MIN_EXTENT_MM = 1.0
 
 _INVALID_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 _WS = re.compile(r"\s+")
@@ -61,7 +65,12 @@ _NAME_RE = re.compile(r'<name\s+lang="([^"]*)"\s*>(.*?)</name>', re.DOTALL)
 _NAME_PREFIX_BYTES = 8192
 # QET font strings: "Liberation Sans,9,-1,5,50,0,0,0,0,0,Regular".
 _FONT_SIZE_RE = re.compile(r"^[^,]*,(\d+(?:\.\d+)?)")
-_POINTS_PER_MM = 25.4 / 72.0
+# Qt draws the stored point size at 96 dpi into element units, so 9pt is
+# 12 element units of em - scaled by SCALE that is 6 mm.  Reading the
+# points as millimetres (9pt = 3.175mm) rendered every imported label at
+# less than half size.
+_FONT_UNITS_PER_PT = 96.0 / 72.0
+_DEFAULT_FONT_PT = 9.0
 
 # Dash patterns for the line-style values QET writes; anything unknown
 # stays solid (the shape model has no dash field, so dashed primitives
@@ -302,14 +311,21 @@ def _pointsOf(attrs: dict[str, str]) -> tuple[tuple[float, float], ...]:
     return tuple(points)
 
 
-def _fontMm(spec: str) -> float:
+def _fontEm(spec: str) -> float:
+    """Font em size in QET element units for a QET font spec.
+
+    Qt draws the stored point size at 96 dpi into element units, so 9pt
+    is 12 element units.  Bounds are computed in element units; the text
+    emitter multiplies by SCALE for the millimetre output.
+    """
     match = _FONT_SIZE_RE.match(spec)
-    if match is None:
-        return 3.0
-    try:
-        return float(match.group(1)) * _POINTS_PER_MM
-    except ValueError:
-        return 3.0
+    points = _DEFAULT_FONT_PT
+    if match is not None:
+        try:
+            points = float(match.group(1))
+        except ValueError:
+            points = _DEFAULT_FONT_PT
+    return points * _FONT_UNITS_PER_PT
 
 
 def _parseDefinition(path: str) -> _Definition:
@@ -367,24 +383,56 @@ def _parseDefinition(path: str) -> _Definition:
                 )
             )
         elif tag == "circle":
-            defn.primitives.append(
-                _Circle(
-                    _floatAttr(attrs, "cx"),
-                    _floatAttr(attrs, "cy"),
-                    _floatAttr(attrs, "r"),
-                    _styleOf(attrs),
+            # QET draws circles as a top-left corner plus a diameter
+            # (every circle in the official collection does); plain SVG
+            # circles use cx/cy/r - accept both.
+            if "diameter" in attrs:
+                diameter = _floatAttr(attrs, "diameter")
+                defn.primitives.append(
+                    _Circle(
+                        _floatAttr(attrs, "x") + diameter / 2.0,
+                        _floatAttr(attrs, "y") + diameter / 2.0,
+                        diameter / 2.0,
+                        _styleOf(attrs),
+                    )
                 )
-            )
+            else:
+                defn.primitives.append(
+                    _Circle(
+                        _floatAttr(attrs, "cx"),
+                        _floatAttr(attrs, "cy"),
+                        _floatAttr(attrs, "r"),
+                        _styleOf(attrs),
+                    )
+                )
         elif tag == "ellipse":
-            defn.primitives.append(
-                _Ellipse(
-                    _floatAttr(attrs, "cx"),
-                    _floatAttr(attrs, "cy"),
-                    _floatAttr(attrs, "rx"),
-                    _floatAttr(attrs, "ry"),
-                    _styleOf(attrs),
+            # Likewise ellipses: QET gives them a bounding box
+            # (x, y, width, height) rather than cx/cy/rx/ry, so reading
+            # the SVG form silently produced a zero-size ellipse at the
+            # origin - nothing rendered, and the viewBox gained a stray
+            # point.  Accept both.
+            if "width" in attrs or "height" in attrs:
+                width = _floatAttr(attrs, "width")
+                height = _floatAttr(attrs, "height")
+                defn.primitives.append(
+                    _Ellipse(
+                        _floatAttr(attrs, "x") + width / 2.0,
+                        _floatAttr(attrs, "y") + height / 2.0,
+                        width / 2.0,
+                        height / 2.0,
+                        _styleOf(attrs),
+                    )
                 )
-            )
+            else:
+                defn.primitives.append(
+                    _Ellipse(
+                        _floatAttr(attrs, "cx"),
+                        _floatAttr(attrs, "cy"),
+                        _floatAttr(attrs, "rx"),
+                        _floatAttr(attrs, "ry"),
+                        _styleOf(attrs),
+                    )
+                )
         elif tag == "arc":
             defn.primitives.append(
                 _Arc(
@@ -398,14 +446,17 @@ def _parseDefinition(path: str) -> _Definition:
                 )
             )
         elif tag == "text":
-            text = attrs.get("text", "")
+            # Collapse whitespace: source values occasionally carry
+            # embedded CR/LF (Windows line breaks inside the value),
+            # which must not reach the single-line attribute.
+            text = " ".join(attrs.get("text", "").split())
             if text:
                 defn.primitives.append(
                     _Text(
                         _floatAttr(attrs, "x"),
                         _floatAttr(attrs, "y"),
                         text,
-                        _fontMm(attrs.get("font", "")),
+                        _fontEm(attrs.get("font", "")),
                         attrs.get("color", "#000000"),
                         _floatAttr(attrs, "rotation"),
                     )
@@ -528,7 +579,9 @@ def _arcPath(prim: _Arc, tx: float, ty: float) -> str:
     ex, ey = point(prim.start + prim.angle)
     large = 1 if abs(prim.angle) > 180.0 else 0
     sweep = 0 if prim.angle > 0 else 1
-    return "M %s %s A %s %s %d %d %s %s" % (
+    # A takes SEVEN: rx ry x-rotation large-arc sweep x y.  Omitting the
+    # rotation makes the path invalid and the arc silently unrenderable.
+    return "M %s %s A %s %s 0 %d %d %s %s" % (
         _fmt(sx), _fmt(sy), _fmt(rx), _fmt(ry),
         large, sweep, _fmt(ex), _fmt(ey),
     )
@@ -556,7 +609,10 @@ def _emitPrimitive(prim: _Primitive, tx: float, ty: float) -> str:
         body = (
             '<text x="%s" y="%s" font-family="Arial" font-size="%s" '
             'fill="%s" text-anchor="start">%s</text>'
-            % (_fmt(x), _fmt(y), _fmt(prim.size), prim.color, escaped)
+            % (
+                _fmt(x), _fmt(y), _fmt(prim.size * SCALE),
+                prim.color, escaped,
+            )
         )
         if abs(prim.rotation) > 1e-9:
             # Wrapped in a group so the editor keeps it verbatim instead
@@ -644,10 +700,17 @@ def convertQETFile(path: str) -> QETSymbol:
     defn = _parseDefinition(path)
     fallback = os.path.splitext(os.path.basename(path))[0]
     name = _displayName(defn.names, fallback)
-    x0, y0, _x1, _y1 = _bounds(defn)
+    x0, y0, x1, y1 = _bounds(defn)
+    min_extent = MIN_EXTENT_MM / SCALE
+    if x1 - x0 < min_extent:
+        mid = (x0 + x1) / 2.0
+        x0, x1 = mid - min_extent / 2.0, mid + min_extent / 2.0
+    if y1 - y0 < min_extent:
+        mid = (y0 + y1) / 2.0
+        y0, y1 = mid - min_extent / 2.0, mid + min_extent / 2.0
     tx, ty = -x0, -y0
-    width = (_x1 - x0) * SCALE
-    height = (_y1 - y0) * SCALE
+    width = (x1 - x0) * SCALE
+    height = (y1 - y0) * SCALE
 
     pins = [
         SymbolPin("x%d" % (index + 1), (px + tx) * SCALE, (py + ty) * SCALE)

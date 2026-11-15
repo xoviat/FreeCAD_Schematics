@@ -1124,6 +1124,16 @@ def t_folder_import():
     assert 'width="3"' in text, "scaled artwork rect missing"
     assert "dynamic_text" not in text, "label leaked into the symbol"
     assert "<path" in text, "arc did not become a backdrop path"
+    # The arc command must carry all seven parameters (rx ry rotation
+    # large sweep x y) - a six-parameter A is invalid SVG and renders
+    # nothing, which XML well-formedness cannot see.
+    import re as _re
+    _arc = _re.search(r'<path d="([^"]+)"', text)
+    assert _arc is not None, "arc path data missing"
+    _tokens = _arc.group(1).split()
+    assert len(_tokens) == 11 and _tokens[0] == "M" and _tokens[3] == "A", (
+        "arc needs 'M x y A rx ry rot large sweep x y', got %r" % _tokens
+    )
     assert "<polyline" in text and "<line" in text, text
     assert abs(pins[0].x - 7.0) < 1e-6 and abs(pins[0].y - 0.0) < 1e-6, pins
     assert abs(pins[1].x - 7.0) < 1e-6 and abs(pins[1].y - 30.0) < 1e-6, pins

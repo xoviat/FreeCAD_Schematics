@@ -25,6 +25,7 @@ are optional; pins are zero-size rects parsed by the workbench cache.
 
 from __future__ import annotations
 
+import html
 import os
 import re
 from dataclasses import dataclass
@@ -177,8 +178,9 @@ class SymbolCatalog:
             desc = _DESC_RE.search(tag)
             ref = _REF_RE.search(tag)
             meta = SymbolMeta(
-                description=desc.group(1) if desc else "",
-                ref=ref.group(1) if ref else "",
+                # Unescaped to round-trip what _setRootAttr wrote.
+                description=html.unescape(desc.group(1)) if desc else "",
+                ref=html.unescape(ref.group(1)) if ref else "",
             )
         self._meta_cache[entry.path] = meta
         return meta

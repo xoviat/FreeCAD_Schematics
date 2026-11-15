@@ -24,6 +24,7 @@ updated in place) + drawing elements + line-bound pin rects.
 
 from __future__ import annotations
 
+import html
 import os
 import re
 from dataclasses import dataclass, field
@@ -69,8 +70,19 @@ def _floatAttr(attrs: dict[str, str], name: str, default: float) -> float:
 
 
 def _setRootAttr(tag: str, name: str, value: str) -> str:
-    """Set (or add) an attribute on an <svg ...> tag string."""
-    escaped = value.replace('"', "'")
+    """Set (or add) an attribute on an <svg ...> tag string.
+
+    The value is XML-escaped: the root-tag regex stops at a bare ``>``
+    and the readers' quote regexes stop at a bare ``"``, so an
+    unescaped ``>`` in a QET name ("... TN-C > TN-S") would truncate
+    the tag and hide the attribute from every reader.
+    """
+    escaped = (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
     pattern = re.compile(re.escape(name) + r'="[^"]*"')
     if pattern.search(tag):
         return pattern.sub(lambda _m: '%s="%s"' % (name, escaped), tag)
@@ -579,10 +591,10 @@ def readSymbol(path: str) -> tuple[str, str, list[SymbolPin]]:
     if root is not None:
         m = re.search(r'schematics:description="([^"]*)"', root.group(0))
         if m:
-            desc = m.group(1)
+            desc = html.unescape(m.group(1))
         m = re.search(r'schematics:ref="([^"]*)"', root.group(0))
         if m:
-            ref = m.group(1)
+            ref = html.unescape(m.group(1))
     return desc, ref, pins
 
 
