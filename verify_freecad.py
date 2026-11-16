@@ -592,7 +592,7 @@ def t_title_block():
 step("title block (fixed size, translated placeholders)", t_title_block)
 
 def t_bom_table():
-    from Schematics.Features.Utils.Reports import componentRows
+    from Schematics.Features.Utils.Reports import componentRows, symbolCount
 
     expected = len(componentRows(sheet))
     assert expected >= 2, expected
@@ -613,6 +613,22 @@ def t_bom_table():
     bom.Title = "Device list"
     assert bom.Title == "Device list", bom.Title
     FreeCAD.ActiveDocument.recompute()
+
+    # an unannotated symbol (blank designator) is not a BOM line, and
+    # the cheap row counter agrees with the full walk
+    victim = next(
+        (o for o in sheet.Elements if getattr(o, "Designator", None) == "R2"),
+        None,
+    )
+    assert victim is not None, "R2 not found"
+    victim.Designator = ""
+    FreeCAD.ActiveDocument.recompute()
+    assert len(componentRows(sheet)) == expected - 1, len(componentRows(sheet))
+    assert symbolCount(sheet) == expected - 1, symbolCount(sheet)
+    victim.Designator = "R2"
+    FreeCAD.ActiveDocument.recompute()
+    assert len(componentRows(sheet)) == expected, len(componentRows(sheet))
+    assert symbolCount(sheet) == expected, symbolCount(sheet)
 step("BOM table element (on-sheet component list)", t_bom_table)
 
 def t_bom_title_box_and_snap():

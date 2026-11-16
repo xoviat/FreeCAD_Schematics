@@ -149,7 +149,8 @@ orientation follow the sheet's template (A4/A3, portrait/landscape), fitted with
 **Component list…** lists every annotated symbol of the sheet (designator, value, symbol,
 description) with CSV export and clipboard copy - the device list a machine schematic is
 delivered with. Rows are ordered naturally (R1, R2, R10); symbols without a designator are
-covered by **Annotate sheet** first.
+covered by **Annotate sheet** first, and until they have one they are not listed at all -
+neither in the dialog nor in the on-sheet table.
 
 **Add BOM table** places the same list *on the sheet* as a table object (KiCad/QET table
 style): position it like any other element, edit its `Title` in the property tab, and the

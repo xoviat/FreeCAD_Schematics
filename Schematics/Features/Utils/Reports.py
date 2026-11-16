@@ -51,7 +51,11 @@ def _designatorSortKey(row: ComponentRow) -> tuple[str, int, str]:
 
 
 def componentRows(sheet: Any, catalog: SymbolCatalog | None = None) -> list[ComponentRow]:
-    """One row per symbol on the sheet, ordered by designator."""
+    """One row per symbol on the sheet, ordered by designator.
+
+    Symbols with a blank designator are unannotated devices and are not
+    listed - an empty BOM line would be noise, not a component.
+    """
     cat = catalog if catalog is not None else SymbolCatalog()
     rows: list[ComponentRow] = []
     try:
@@ -63,6 +67,9 @@ def componentRows(sheet: Any, catalog: SymbolCatalog | None = None) -> list[Comp
             designator = getattr(element, "Designator", None)
             if designator is None:
                 continue   # not a symbol (wire, rectangle, text, ...)
+            designator = str(designator)
+            if not designator.strip():
+                continue   # unannotated: no BOM line (KiCad/QET skip it too)
             entry = cat.find_by_instance(element)
             if entry is not None:
                 symbol = "%s/%s" % (entry.group or "(root)", entry.name)
@@ -72,7 +79,7 @@ def componentRows(sheet: Any, catalog: SymbolCatalog | None = None) -> list[Comp
                 description = ""
             rows.append(
                 ComponentRow(
-                    designator=str(designator),
+                    designator=designator,
                     value=str(getattr(element, "Value", "")),
                     symbol=symbol,
                     description=description,
@@ -92,7 +99,7 @@ def symbolCount(sheet: Any) -> int:
     walks the whole symbol store) is only needed for the symbol name and
     description that componentRows fills in. Size math on the sheet runs
     per mouse-move while dragging, so it must stay cheap - verify pins
-    the two to the same number.
+    the two to the same number, blank designators excluded in both.
     """
     try:
         elements = list(sheet.Elements)
@@ -101,7 +108,8 @@ def symbolCount(sheet: Any) -> int:
     count = 0
     for element in elements:
         try:
-            if getattr(element, "Designator", None) is not None:
+            designator = getattr(element, "Designator", None)
+            if designator is not None and str(designator).strip():
                 count += 1
         except (ReferenceError, RuntimeError, AttributeError):
             continue   # half-deleted element; componentRows skips it too
